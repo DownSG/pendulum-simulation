@@ -1,0 +1,319 @@
+import json
+import os
+
+notebook = {
+    "cells": [
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "# 单摆精确测量虚拟平台\n",
+                "\n",
+                "本notebook演示了单摆虚拟平台的主要功能，包括：\n",
+                "1. 单摆基本模拟\n",
+                "2. 理论与实验数据对比\n",
+                "3. 重力加速度测量\n",
+                "4. 交互式单摆模拟"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "# 导入所需库\n",
+                "import numpy as np\n",
+                "import matplotlib.pyplot as plt\n",
+                "%matplotlib inline\n",
+                "\n",
+                "# 从我们的模块导入类\n",
+                "from pendulum_simulation import PendulumSimulation\n",
+                "from data_analyzer import DataAnalyzer"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 1. 基本单摆模拟\n",
+                "\n",
+                "首先，我们创建一个基本的单摆模拟，并查看其运动特性。"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "# 创建单摆实例\n",
+                "pendulum = PendulumSimulation(\n",
+                "    length=1.0,          # 摆长 (m)\n",
+                "    mass=0.1,            # 质量 (kg)\n",
+                "    gravity=9.8,         # 重力加速度 (m/s²)\n",
+                "    damping=0.1,         # 阻尼系数\n",
+                "    initial_angle=np.pi/6  # 初始角度 (30度)\n",
+                ")\n",
+                "\n",
+                "# 运行模拟\n",
+                "print(\"运行单摆模拟...\")\n",
+                "results = pendulum.simulate(t_span=(0, 20), t_points=1000)\n",
+                "\n",
+                "# 计算周期\n",
+                "periods, avg_period = pendulum.calculate_periods()\n",
+                "print(f\"测量的平均周期: {avg_period:.6f} s\")\n",
+                "\n",
+                "# 计算重力加速度\n",
+                "g = pendulum.calculate_gravity()\n",
+                "print(f\"根据周期计算的重力加速度: {g:.6f} m/s²\")\n",
+                "\n",
+                "# 可视化结果\n",
+                "fig = pendulum.visualize()\n",
+                "plt.show()"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "### 单摆动画\n",
+                "\n",
+                "下面我们创建单摆运动的动画，直观展示其运动过程。"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "# 创建动画\n",
+                "anim = pendulum.animate_pendulum(interval=50)\n",
+                "\n",
+                "# 显示动画\n",
+                "from IPython.display import HTML\n",
+                "HTML(anim.to_jshtml())"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 2. 理论与实验数据对比\n",
+                "\n",
+                "下面我们创建一个理想的理论模型，以及一个带有阻尼和噪声的\"实验\"模型，并比较两者的差异。"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "# 创建无阻尼理论模型\n",
+                "theory = PendulumSimulation(\n",
+                "    length=1.0,\n",
+                "    mass=0.1,\n",
+                "    gravity=9.8,\n",
+                "    damping=0.01,  # 极小阻尼\n",
+                "    initial_angle=np.pi/6\n",
+                ")\n",
+                "\n",
+                "# 运行理论模拟\n",
+                "print(\"运行理论模型...\")\n",
+                "theory_results = theory.simulate(t_span=(0, 10), t_points=500)\n",
+                "\n",
+                "# 创建带阻尼和噪声的\"实验\"模型\n",
+                "experiment = PendulumSimulation(\n",
+                "    length=1.0,\n",
+                "    mass=0.1,\n",
+                "    gravity=9.81,  # 略微不同的重力加速度\n",
+                "    damping=0.15,  # 更大的阻尼\n",
+                "    initial_angle=np.pi/6 + 0.02  # 初始角度有小误差\n",
+                ")\n",
+                "\n",
+                "# 运行实验模拟\n",
+                "print(\"运行\\\"实验\\\"模型...\")\n",
+                "exp_results = experiment.simulate(t_span=(0, 10), t_points=500)\n",
+                "\n",
+                "# 添加测量噪声\n",
+                "print(\"添加测量噪声...\")\n",
+                "np.random.seed(42)  # 设置随机种子以便结果可重现\n",
+                "noise_level = 0.005  # 噪声水平\n",
+                "\n",
+                "for key in ['angle', 'x_position', 'y_position']:\n",
+                "    noise = np.random.normal(0, noise_level, len(exp_results[key]))\n",
+                "    exp_results[key] = exp_results[key] + noise\n",
+                "\n",
+                "# 重新计算派生数据\n",
+                "exp_results['angular_velocity'] = np.gradient(exp_results['angle'], exp_results['time'])\n",
+                "\n",
+                "# 创建数据分析器\n",
+                "analyzer = DataAnalyzer()\n",
+                "analyzer.add_theoretical_data(theory_results)\n",
+                "analyzer.add_experimental_data(exp_results)\n",
+                "\n",
+                "# 计算误差指标\n",
+                "print(\"计算误差指标...\")\n",
+                "error_metrics = analyzer.calculate_error_metrics()\n",
+                "print(\"误差指标:\")\n",
+                "for key, value in error_metrics.items():\n",
+                "    print(f\"  {key}: {value:.6f}\")\n",
+                "\n",
+                "# 可视化比较\n",
+                "fig = analyzer.visualize_comparison()\n",
+                "plt.show()\n",
+                "\n",
+                "# 导出数据到CSV\n",
+                "analyzer.export_data_to_csv('pendulum_data_comparison.csv')"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 3. 重力加速度测量实验\n",
+                "\n",
+                "在这个部分中，我们通过测量不同摆长下的周期来估算重力加速度，这是经典的物理实验方法。"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "# 准备不同的摆长\n",
+                "lengths = np.linspace(0.5, 2.0, 10)  # 10个不同长度的摆\n",
+                "\n",
+                "# 创建数据分析器\n",
+                "analyzer = DataAnalyzer()\n",
+                "\n",
+                "# 运行摆长周期实验\n",
+                "print(\"运行不同摆长的周期测量...\")\n",
+                "results, fig = analyzer.pendulum_length_vs_period_experiment(\n",
+                "    PendulumSimulation,\n",
+                "    lengths,\n",
+                "    gravity=9.8,\n",
+                "    mass=0.1,\n",
+                "    damping=0.05,\n",
+                "    initial_angle=np.pi/12,\n",
+                "    t_span=(0, 20),\n",
+                "    t_points=1000\n",
+                ")\n",
+                "\n",
+                "# 显示结果\n",
+                "print(f\"\\n实验测量的重力加速度: {results['gravity_estimate']['g_value']:.6f} ± {results['gravity_estimate']['g_uncertainty']:.6f} m/s²\")\n",
+                "print(f\"相对于标准值 (9.80665 m/s²) 的误差: {abs(results['gravity_estimate']['g_value'] - 9.80665)/9.80665*100:.6f}%\")\n",
+                "\n",
+                "# 显示图表\n",
+                "plt.show()"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## 4. 交互式单摆模拟\n",
+                "\n",
+                "最后，我们创建一个交互式界面，可以实时调整单摆参数并观察其影响。"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "source": [
+                "import ipywidgets as widgets\n",
+                "from IPython.display import display\n",
+                "\n",
+                "# 参数范围\n",
+                "length_slider = widgets.FloatSlider(value=1.0, min=0.1, max=2.0, step=0.1, description='摆长 (m):')\n",
+                "mass_slider = widgets.FloatSlider(value=0.1, min=0.01, max=1.0, step=0.01, description='质量 (kg):')\n",
+                "gravity_slider = widgets.FloatSlider(value=9.8, min=1.0, max=20.0, step=0.1, description='重力加速度:')\n",
+                "damping_slider = widgets.FloatSlider(value=0.1, min=0.0, max=1.0, step=0.01, description='阻尼系数:')\n",
+                "angle_slider = widgets.FloatSlider(value=30, min=5, max=90, step=5, description='初始角度 (°):')\n",
+                "\n",
+                "# 输出控件\n",
+                "output = widgets.Output()\n",
+                "\n",
+                "# 运行按钮\n",
+                "run_button = widgets.Button(description=\"运行模拟\")\n",
+                "\n",
+                "def on_run_button_click(b):\n",
+                "    with output:\n",
+                "        output.clear_output()\n",
+                "        \n",
+                "        # 创建单摆\n",
+                "        pendulum = PendulumSimulation(\n",
+                "            length=length_slider.value,\n",
+                "            mass=mass_slider.value,\n",
+                "            gravity=gravity_slider.value,\n",
+                "            damping=damping_slider.value,\n",
+                "            initial_angle=np.deg2rad(angle_slider.value)  # 转换为弧度\n",
+                "        )\n",
+                "        \n",
+                "        # 运行模拟\n",
+                "        print(\"运行模拟中...\")\n",
+                "        results = pendulum.simulate(t_span=(0, 20), t_points=1000)\n",
+                "        \n",
+                "        # 计算周期\n",
+                "        periods, avg_period = pendulum.calculate_periods()\n",
+                "        print(f\"测量的平均周期: {avg_period:.6f} s\")\n",
+                "        \n",
+                "        # 计算重力加速度\n",
+                "        g = pendulum.calculate_gravity()\n",
+                "        print(f\"根据周期计算的重力加速度: {g:.6f} m/s²\")\n",
+                "        \n",
+                "        # 理论周期 (小角近似)\n",
+                "        theory_period = 2 * np.pi * np.sqrt(pendulum.length / pendulum.gravity)\n",
+                "        print(f\"理论周期 (小角近似): {theory_period:.6f} s\")\n",
+                "        print(f\"相对误差: {abs(avg_period - theory_period)/theory_period*100:.4f}%\")\n",
+                "        \n",
+                "        # 显示图表\n",
+                "        fig = pendulum.visualize()\n",
+                "        plt.show()\n",
+                "        \n",
+                "# 连接按钮点击事件\n",
+                "run_button.on_click(on_run_button_click)\n",
+                "\n",
+                "# 创建UI布局\n",
+                "print(\"=== 单摆虚拟平台交互式模式 ===\")\n",
+                "print(\"调整参数并点击'运行模拟'按钮\")\n",
+                "\n",
+                "ui = widgets.VBox([\n",
+                "    widgets.HBox([length_slider, mass_slider]),\n",
+                "    widgets.HBox([gravity_slider, damping_slider]),\n",
+                "    angle_slider,\n",
+                "    run_button,\n",
+                "    output\n",
+                "])\n",
+                "\n",
+                "display(ui)"
+            ]
+        }
+    ],
+    "metadata": {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3"
+        },
+        "language_info": {
+            "codemirror_mode": {
+                "name": "ipython",
+                "version": 3
+            },
+            "file_extension": ".py",
+            "mimetype": "text/x-python",
+            "name": "python",
+            "nbconvert_exporter": "python",
+            "pygments_lexer": "ipython3",
+            "version": "3.8.10"
+        }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 4
+}
+
+# 将笔记本写入文件
+with open('pendulum_demo.ipynb', 'w', encoding='utf-8') as f:
+    json.dump(notebook, f, ensure_ascii=False, indent=1)
+
+print("Jupyter Notebook 已创建：pendulum_demo.ipynb") 
