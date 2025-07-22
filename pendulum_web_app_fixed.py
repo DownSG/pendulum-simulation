@@ -141,6 +141,7 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
     return {
         "time": results["time"].tolist(),  # 转换numpy数组为列表以便序列化
         "angle": results["angle"].tolist(),
+        "angular_velocity": results["angular_velocity"].tolist(),  # 添加角速度数据
         "x_position": results["x_position"].tolist(),
         "y_position": results["y_position"].tolist(),
         "total_energy": results["total_energy"].tolist(),
@@ -161,6 +162,7 @@ if app_mode == "单摆基本模拟":
         # 从缓存数据中获取结果
         time_data = np.array(sim_data["time"])
         angle_data = np.array(sim_data["angle"])
+        angular_velocity = np.array(sim_data["angular_velocity"])  # 提取角速度数据
         x_position = np.array(sim_data["x_position"])
         y_position = np.array(sim_data["y_position"])
         total_energy = np.array(sim_data["total_energy"])
@@ -251,7 +253,9 @@ if app_mode == "单摆基本模拟":
                 "angle": angle_data,
                 "x_position": x_position,
                 "y_position": y_position,
-                "total_energy": total_energy
+                "total_energy": total_energy,
+                # 添加角速度 - 通过对角度数据求导得到
+                "angular_velocity": np.gradient(angle_data, time_data)
             }
             
             # 生成图表并应用英文标签
