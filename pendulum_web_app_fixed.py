@@ -141,9 +141,11 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
     return {
         "time": results["time"].tolist(),  # 转换numpy数组为列表以便序列化
         "angle": results["angle"].tolist(),
-        "angular_velocity": results["angular_velocity"].tolist(),  # 添加角速度数据
+        "angular_velocity": results["angular_velocity"].tolist(),
         "x_position": results["x_position"].tolist(),
         "y_position": results["y_position"].tolist(),
+        "kinetic_energy": results["kinetic_energy"].tolist(),  # 添加动能数据
+        "potential_energy": results["potential_energy"].tolist(),  # 添加势能数据
         "total_energy": results["total_energy"].tolist(),
         "periods": periods,
         "avg_period": avg_period,
@@ -162,9 +164,11 @@ if app_mode == "单摆基本模拟":
         # 从缓存数据中获取结果
         time_data = np.array(sim_data["time"])
         angle_data = np.array(sim_data["angle"])
-        angular_velocity = np.array(sim_data["angular_velocity"])  # 提取角速度数据
+        angular_velocity = np.array(sim_data["angular_velocity"])
         x_position = np.array(sim_data["x_position"])
         y_position = np.array(sim_data["y_position"])
+        kinetic_energy = np.array(sim_data["kinetic_energy"])  # 提取动能数据
+        potential_energy = np.array(sim_data["potential_energy"])  # 提取势能数据
         total_energy = np.array(sim_data["total_energy"])
         periods = sim_data["periods"]
         avg_period = sim_data["avg_period"]
@@ -251,11 +255,12 @@ if app_mode == "单摆基本模拟":
             pendulum.simulation_results = {
                 "time": time_data,
                 "angle": angle_data,
+                "angular_velocity": angular_velocity,
                 "x_position": x_position,
                 "y_position": y_position,
-                "total_energy": total_energy,
-                # 添加角速度 - 通过对角度数据求导得到
-                "angular_velocity": np.gradient(angle_data, time_data)
+                "kinetic_energy": kinetic_energy,
+                "potential_energy": potential_energy,
+                "total_energy": total_energy
             }
             
             # 生成图表并应用英文标签
