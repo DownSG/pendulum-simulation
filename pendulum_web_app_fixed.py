@@ -690,4 +690,4 @@ with st.expander("使用说明"):
     可以根据公式 T = 2π√(L/g) 精确计算重力加速度。
     """)
 
-st.sidebar.info("© 2024 单摆精确测量虚拟平台") 
+st.sidebar.info("© 2025 单摆精确测量虚拟平台") 
