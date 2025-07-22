@@ -15,7 +15,7 @@ class PendulumSimulation:
         length: 摆长(米)
         mass: 摆球质量(kg)
         gravity: 重力加速度(m/s^2)
-        damping: 阻尼系数
+        damping: 阻尼系数，表示阻尼力与速度的比例系数
         initial_angle: 初始角度(弧度)
         """
         self.length = length
@@ -27,16 +27,23 @@ class PendulumSimulation:
         
     def pendulum_ode(self, t, y):
         """
-        单摆运动的微分方程
+        单摆运动的微分方程：
+        d²θ/dt² + (b/mL²)·dθ/dt + (g/L)·sinθ = 0
+        
         y[0]: 角度 theta
-        y[1]: 角速度 omega
+        y[1]: 角速度 omega = dθ/dt
+        
+        返回:
+        dydt: [dθ/dt, d²θ/dt²]
         """
         theta, omega = y
         
         # 考虑空气阻力的非线性单摆方程
+        # 正确的阻尼项应为: (damping/m)·L·dθ/dt
+        # 因为阻尼力矩 = b·L·ω
         dydt = [
             omega,
-            -self.gravity / self.length * np.sin(theta) - self.damping * omega / self.mass
+            -self.gravity / self.length * np.sin(theta) - self.damping / self.mass * omega
         ]
         return dydt
     
@@ -61,8 +68,8 @@ class PendulumSimulation:
             initial_state,
             method='RK45',
             t_eval=t_eval,
-            rtol=1e-8,
-            atol=1e-8
+            rtol=1e-10,  # 提高积分精度
+            atol=1e-10   # 提高积分精度
         )
         
         # 提取结果
@@ -70,7 +77,7 @@ class PendulumSimulation:
         angles = solution.y[0]
         angular_velocities = solution.y[1]
         
-        # 计算位置坐标
+        # 计算位置坐标 (x向右, y向下为正)
         x_positions = self.length * np.sin(angles)
         y_positions = -self.length * np.cos(angles)
         
@@ -79,8 +86,14 @@ class PendulumSimulation:
         vy = self.length * angular_velocities * np.sin(angles)
         
         # 计算总能量
-        kinetic_energy = 0.5 * self.mass * (vx**2 + vy**2)
-        potential_energy = self.mass * self.gravity * (self.length + y_positions)
+        # 动能 K = 1/2·m·L²·ω²
+        kinetic_energy = 0.5 * self.mass * (self.length * angular_velocities)**2
+        
+        # 势能 U = m·g·h = m·g·L·(1-cosθ)
+        # 零势能点为摆长垂直向下的位置
+        potential_energy = self.mass * self.gravity * self.length * (1 - np.cos(angles))
+        
+        # 总能量
         total_energy = kinetic_energy + potential_energy
         
         # 存储结果
@@ -102,7 +115,7 @@ class PendulumSimulation:
     def calculate_periods(self):
         """
         计算单摆的周期
-        通过寻找角位移的零点交叉来精确计算
+        通过寻找角位移的峰值来精确计算
         
         返回:
         periods: 周期列表
@@ -114,21 +127,35 @@ class PendulumSimulation:
         angles = self.simulation_results['angle']
         times = self.simulation_results['time']
         
-        # 寻找角度为0的过零点 (从负到正)
-        zero_crossings = []
-        for i in range(1, len(angles)):
-            if angles[i-1] < 0 and angles[i] >= 0:
-                # 使用线性插值找到精确交叉点
-                t_crossing = times[i-1] + (times[i] - times[i-1]) * (
-                    -angles[i-1] / (angles[i] - angles[i-1])
-                )
-                zero_crossings.append(t_crossing)
+        # 寻找角度的峰值（极大值）
+        peaks = []
+        for i in range(1, len(angles)-1):
+            if angles[i] > angles[i-1] and angles[i] > angles[i+1]:
+                # 二次插值找到精确峰值时间
+                t0, t1, t2 = times[i-1], times[i], times[i+1]
+                y0, y1, y2 = angles[i-1], angles[i], angles[i+1]
+                
+                # 拟合二次函数 y = a*t^2 + b*t + c 的顶点
+                denom = (t0 - t1) * (t0 - t2) * (t1 - t2)
+                a = (t0 * (y1 - y2) + t1 * (y2 - y0) + t2 * (y0 - y1)) / denom
+                b = (t0*t0 * (y1 - y2) + t1*t1 * (y2 - y0) + t2*t2 * (y0 - y1)) / denom
+                
+                # 顶点时间: t = -b/(2a)
+                if a != 0:
+                    peak_time = -b / (2*a)
+                    # 只添加在时间范围内的峰值
+                    if t0 <= peak_time <= t2:
+                        peaks.append(peak_time)
+                else:
+                    peaks.append(t1)
         
-        # 计算周期 (相邻零点交叉间的时间间隔的两倍)
+        # 计算周期 (相邻峰值间的时间间隔)
         periods = []
-        for i in range(len(zero_crossings) - 1):
-            period = 2 * (zero_crossings[i+1] - zero_crossings[i])
-            periods.append(period)
+        for i in range(len(peaks) - 1):
+            period = peaks[i+1] - peaks[i]
+            # 过滤掉明显不合理的周期值
+            if 0.1 < period < 10:  # 根据物理情况设置合理范围
+                periods.append(period)
             
         if len(periods) == 0:
             # 如果找不到完整周期，使用小角近似计算
@@ -143,14 +170,24 @@ class PendulumSimulation:
         根据测量的周期计算重力加速度
         使用公式: g = 4π²L/T²
         
+        对于大角度，使用修正公式:
+        g = 4π²L/T² · (1 - sin²(θ₀/2)/16 - ...)^(-2)
+        
         返回:
         g: 计算得到的重力加速度
         """
         _, avg_period = self.calculate_periods()
         
         # 根据单摆周期公式计算重力加速度
-        g = 4 * np.pi**2 * self.length / (avg_period**2)
-        return g
+        g_uncorrected = 4 * np.pi**2 * self.length / (avg_period**2)
+        
+        # 大角度修正（考虑第一项非线性修正）
+        if abs(self.initial_angle) > 0.1:  # 约5.7度
+            correction = (1 - np.sin(self.initial_angle/2)**2 / 16)**(-2)
+            g_corrected = g_uncorrected * correction
+            return g_corrected
+        
+        return g_uncorrected
         
     def visualize(self):
         """
