@@ -5,10 +5,10 @@ from pendulum_simulation import PendulumSimulation
 from data_analyzer import DataAnalyzer
 import base64
 from io import BytesIO  # 仍需用于CSV导出
-from font_helper import setup_chinese_font, apply_chinese_font_to_figure, apply_chinese_font_to_axes
 
-# 配置中文字体支持
-font_prop = setup_chinese_font()
+# 配置matplotlib基本设置
+import matplotlib
+matplotlib.rcParams['axes.unicode_minus'] = False
 
 st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
 
@@ -56,7 +56,7 @@ def create_pendulum_animation(pendulum, duration=5, fps=20):
     # 绘制轨迹
     ax.plot(pendulum.simulation_results['x_position'], 
             pendulum.simulation_results['y_position'], 
-            'r-', alpha=0.5, label=u'轨迹')
+            'r-', alpha=0.5, label='Trajectory')
     
     # 选择当前位置点绘制单摆
     frame_idx = len(pendulum.simulation_results['time']) // 3  # 选择中间位置
@@ -68,22 +68,110 @@ def create_pendulum_animation(pendulum, duration=5, fps=20):
     ax.plot([0, x], [0, y], 'k-', linewidth=2)  # 摆杆
     ax.plot([x], [y], 'ro', markersize=10)  # 摆球
     
-    # 添加标题和信息 - 使用中文字体
-    ax.set_title(u'单摆运动模拟')
-    ax.text(0.02, 0.95, u'时间: {:.2f} s'.format(pendulum.simulation_results["time"][frame_idx]), 
+    # 添加标题和信息 - 使用英文
+    ax.set_title('Pendulum Motion Simulation')
+    ax.text(0.02, 0.95, 'Time: {:.2f} s'.format(pendulum.simulation_results["time"][frame_idx]), 
             transform=ax.transAxes)
-    ax.text(0.02, 0.90, u'周期: {:.4f} s'.format(2 * np.pi * np.sqrt(pendulum.length / pendulum.gravity)), 
+    ax.text(0.02, 0.90, 'Period: {:.4f} s'.format(2 * np.pi * np.sqrt(pendulum.length / pendulum.gravity)), 
             transform=ax.transAxes)
     
     ax.legend()
     fig.tight_layout()
     
-    # 应用中文字体
-    apply_chinese_font_to_figure(fig, font_prop)
-    apply_chinese_font_to_axes(ax, font_prop)
-    
     # 返回图表而不是保存为GIF
     return fig
+
+# 修改PendulumSimulation类的visualize方法中的中文标签（在实际运行时进行替换）
+def modify_pendulum_visualization(pendulum):
+    """修改单摆可视化方法，使用英文标签"""
+    original_visualize = pendulum.visualize
+    
+    def new_visualize():
+        fig = original_visualize()
+        
+        # 替换图表中的标题和标签为英文
+        for ax in fig.axes:
+            if "角度" in ax.get_title():
+                ax.set_title("Angle vs Time")
+            elif "相位" in ax.get_title():
+                ax.set_title("Phase Space")
+            elif "位置" in ax.get_title():
+                ax.set_title("Position vs Time")
+            elif "能量" in ax.get_title():
+                ax.set_title("Energy vs Time")
+            elif "周期" in ax.get_title():
+                ax.set_title("Period Measurement")
+            elif "验证" in ax.get_title():
+                ax.set_title("T² vs L Relationship")
+                
+            # 替换坐标轴标签
+            if "时间" in ax.get_xlabel():
+                ax.set_xlabel("Time (s)")
+            elif "摆长" in ax.get_xlabel():
+                ax.set_xlabel("Length (m)")
+            
+            if "角度" in ax.get_ylabel():
+                ax.set_ylabel("Angle (rad)")
+            elif "角速度" in ax.get_ylabel():
+                ax.set_ylabel("Angular Velocity (rad/s)")
+            elif "位置" in ax.get_ylabel():
+                ax.set_ylabel("Position (m)")
+            elif "能量" in ax.get_ylabel():
+                ax.set_ylabel("Energy (J)")
+            elif "周期" in ax.get_ylabel():
+                ax.set_ylabel("Period (s)")
+            elif "周期平方" in ax.get_ylabel():
+                ax.set_ylabel("Period² (s²)")
+        
+        return fig
+    
+    pendulum.visualize = new_visualize
+    return pendulum
+
+# 修改DataAnalyzer类的可视化方法
+def modify_analyzer_visualization(analyzer):
+    """修改数据分析器可视化方法，使用英文标签"""
+    original_visualize_comparison = analyzer.visualize_comparison
+    
+    def new_visualize_comparison():
+        fig = original_visualize_comparison()
+        
+        # 替换图表中的标题和标签为英文
+        for ax in fig.axes:
+            if "角度" in ax.get_title():
+                ax.set_title("Angle vs Time")
+            elif "相位" in ax.get_title():
+                ax.set_title("Phase Space")
+            elif "位置" in ax.get_title():
+                ax.set_title("Position vs Time")
+            elif "能量" in ax.get_title():
+                ax.set_title("Energy vs Time")
+                
+            # 替换坐标轴标签
+            if "时间" in ax.get_xlabel():
+                ax.set_xlabel("Time (s)")
+            
+            if "角度" in ax.get_ylabel():
+                ax.set_ylabel("Angle (rad)")
+            elif "角速度" in ax.get_ylabel():
+                ax.set_ylabel("Angular Velocity (rad/s)")
+            elif "位置" in ax.get_ylabel():
+                ax.set_ylabel("Position (m)")
+            elif "能量" in ax.get_ylabel():
+                ax.set_ylabel("Energy (J)")
+            
+            # 替换图例
+            if ax.get_legend():
+                for text in ax.get_legend().texts:
+                    if "理论" in text.get_text():
+                        text.set_text("Theory")
+                    elif "实验" in text.get_text():
+                        text.set_text("Experiment")
+        
+        return fig
+    
+    analyzer.visualize_comparison = new_visualize_comparison
+    return analyzer
 
 if app_mode == "单摆基本模拟":
     st.header("单摆基本模拟")
@@ -96,6 +184,9 @@ if app_mode == "单摆基本模拟":
         damping=damping, 
         initial_angle=initial_angle_rad
     )
+    
+    # 修改可视化方法
+    pendulum = modify_pendulum_visualization(pendulum)
     
     # 运行模拟
     with st.spinner("运行单摆模拟..."):
@@ -131,8 +222,6 @@ if app_mode == "单摆基本模拟":
         # 生成可视化
         with st.spinner("生成图表..."):
             fig = pendulum.visualize()
-            # 确保图表中文字体显示正确
-            apply_chinese_font_to_figure(fig, font_prop)
             st.pyplot(fig)
     
     with tab3:
@@ -230,6 +319,9 @@ elif app_mode == "理论与实验数据对比":
     analyzer.add_theoretical_data(theory_results)
     analyzer.add_experimental_data(exp_results)
     
+    # 修改可视化方法
+    analyzer = modify_analyzer_visualization(analyzer)
+    
     # 计算误差指标
     with st.spinner("计算误差指标..."):
         error_metrics = analyzer.calculate_error_metrics()
@@ -248,8 +340,6 @@ elif app_mode == "理论与实验数据对比":
     st.subheader("数据对比可视化")
     with st.spinner("生成对比图表..."):
         fig = analyzer.visualize_comparison()
-        # 确保图表中文字体显示正确
-        apply_chinese_font_to_figure(fig, font_prop)
         st.pyplot(fig)
     
     # 保存数据
@@ -286,6 +376,21 @@ elif app_mode == "重力加速度测量实验":
             t_points=1000
         )
     
+    # 修改图表中的中文标签为英文
+    for ax in fig.axes:
+        if "周期" in ax.get_title():
+            ax.set_title("Period vs Length")
+        elif "验证" in ax.get_title():
+            ax.set_title("T² vs L Relationship")
+            
+        if "摆长" in ax.get_xlabel():
+            ax.set_xlabel("Length (m)")
+        
+        if "周期" in ax.get_ylabel():
+            ax.set_ylabel("Period (s)")
+        elif "周期平方" in ax.get_ylabel():
+            ax.set_ylabel("Period² (s²)")
+    
     # 显示结果
     st.subheader("测量结果")
     g_value = results['gravity_estimate']['g_value']
@@ -302,8 +407,6 @@ elif app_mode == "重力加速度测量实验":
         st.metric("相对标准值误差", f"{relative_error:.6f}%")
     
     # 显示图表
-    # 确保图表中文字体显示正确
-    apply_chinese_font_to_figure(fig, font_prop)
     st.pyplot(fig)
     
     # 显示详细数据
