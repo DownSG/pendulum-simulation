@@ -5,30 +5,10 @@ from pendulum_simulation import PendulumSimulation
 from data_analyzer import DataAnalyzer
 import base64
 from io import BytesIO  # 仍需用于CSV导出
+from font_helper import setup_chinese_font, apply_chinese_font_to_figure, apply_chinese_font_to_axes
 
-# 配置matplotlib支持中文显示
-import matplotlib
-# Windows系统使用微软雅黑字体
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'sans-serif']
-matplotlib.rcParams['axes.unicode_minus'] = False  # 正确显示负号
-
-# 添加辅助函数确保每个图表都正确设置中文字体
-def setup_chinese_font(fig=None, ax=None):
-    """配置图表支持中文字体"""
-    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'sans-serif']
-    plt.rcParams['axes.unicode_minus'] = False
-    
-    if fig is not None:
-        for text_obj in fig.findobj(matplotlib.text.Text):
-            text_obj.set_fontfamily(['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'sans-serif'])
-    
-    if ax is not None:
-        for text in ax.texts:
-            text.set_fontfamily(['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'sans-serif'])
-        
-        ax.set_title(ax.get_title(), fontfamily='Microsoft YaHei')
-        ax.set_xlabel(ax.get_xlabel(), fontfamily='Microsoft YaHei')
-        ax.set_ylabel(ax.get_ylabel(), fontfamily='Microsoft YaHei')
+# 配置中文字体支持
+font_prop = setup_chinese_font()
 
 st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
 
@@ -67,10 +47,7 @@ def create_pendulum_animation(pendulum, duration=5, fps=20):
     """
     创建单摆运动的静态图像序列，而不是动画
     """
-    # 创建图表并明确指定字体以支持中文
-    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS', 'sans-serif']
-    plt.rcParams['axes.unicode_minus'] = False
-    
+    # 创建图表
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
     ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
@@ -91,7 +68,7 @@ def create_pendulum_animation(pendulum, duration=5, fps=20):
     ax.plot([0, x], [0, y], 'k-', linewidth=2)  # 摆杆
     ax.plot([x], [y], 'ro', markersize=10)  # 摆球
     
-    # 添加标题和信息 - 使用unicode字符串确保中文正确显示
+    # 添加标题和信息 - 使用中文字体
     ax.set_title(u'单摆运动模拟')
     ax.text(0.02, 0.95, u'时间: {:.2f} s'.format(pendulum.simulation_results["time"][frame_idx]), 
             transform=ax.transAxes)
@@ -100,6 +77,10 @@ def create_pendulum_animation(pendulum, duration=5, fps=20):
     
     ax.legend()
     fig.tight_layout()
+    
+    # 应用中文字体
+    apply_chinese_font_to_figure(fig, font_prop)
+    apply_chinese_font_to_axes(ax, font_prop)
     
     # 返回图表而不是保存为GIF
     return fig
@@ -151,7 +132,7 @@ if app_mode == "单摆基本模拟":
         with st.spinner("生成图表..."):
             fig = pendulum.visualize()
             # 确保图表中文字体显示正确
-            setup_chinese_font(fig=fig)
+            apply_chinese_font_to_figure(fig, font_prop)
             st.pyplot(fig)
     
     with tab3:
@@ -268,7 +249,7 @@ elif app_mode == "理论与实验数据对比":
     with st.spinner("生成对比图表..."):
         fig = analyzer.visualize_comparison()
         # 确保图表中文字体显示正确
-        setup_chinese_font(fig=fig)
+        apply_chinese_font_to_figure(fig, font_prop)
         st.pyplot(fig)
     
     # 保存数据
@@ -322,7 +303,7 @@ elif app_mode == "重力加速度测量实验":
     
     # 显示图表
     # 确保图表中文字体显示正确
-    setup_chinese_font(fig=fig)
+    apply_chinese_font_to_figure(fig, font_prop)
     st.pyplot(fig)
     
     # 显示详细数据
