@@ -88,10 +88,23 @@ with st.sidebar.expander("基础参数", expanded=True):
 initial_angle_rad = np.deg2rad(initial_angle)
 
 # 创建单帧图像
-def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx):
-    """创建单摆运动的单一帧"""
+def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx, angle_data=None, angular_velocity=None):
+    """创建单摆运动的单一帧，带有详细的物理信息显示"""
+    # 获取当前位置和角度
+    x = x_pos[frame_idx]
+    y = y_pos[frame_idx]
+    
+    # 如果提供了角度和角速度数据，则使用它们
+    if angle_data is not None and angular_velocity is not None:
+        angle = angle_data[frame_idx]
+        omega = angular_velocity[frame_idx]
+    else:
+        # 从位置推算角度
+        angle = np.arctan2(x, -y)
+        omega = 0  # 无法从单帧准确推算角速度
+    
     # 创建图表
-    fig, ax = plt.subplots(figsize=(5, 5))
+    fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xlim(-1.5*length, 1.5*length)
     ax.set_ylim(-1.5*length, 0.5*length)
     ax.grid(True)
@@ -103,23 +116,72 @@ def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx):
     trail_start = max(0, frame_idx - 20)  # 只显示最近的20个点
     ax.plot(x_pos[trail_start:frame_idx+1], y_pos[trail_start:frame_idx+1], 'r-', alpha=0.5, linewidth=1.5)
     
-    # 当前位置
-    x = x_pos[frame_idx]
-    y = y_pos[frame_idx]
+    # 绘制坐标轴
+    ax.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
+    ax.axvline(x=0, color='gray', linestyle='-', alpha=0.3)
     
     # 绘制摆点和摆杆
     ax.plot([0], [0], 'ko', markersize=8)  # 摆点
     ax.plot([0, x], [0, y], 'k-', linewidth=2)  # 摆杆
     ax.plot([x], [y], 'ro', markersize=10)  # 摆球
     
-    # 添加文本
-    ax.set_title('Pendulum Motion Animation')
-    ax.text(0.02, 0.95, f'Time: {time_val[frame_idx]:.2f} s', transform=ax.transAxes)
-    ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(length/gravity):.4f} s', transform=ax.transAxes)
+    # 计算切向速度向量和法向加速度
+    if omega != 0:
+        # 切向速度
+        v_scale = 0.3 * length  # 缩放因子，使箭头可见
+        vx = -v_scale * omega * np.sin(angle)
+        vy = -v_scale * omega * np.cos(angle)
+        ax.arrow(x, y, vx, vy, head_width=0.05*length, head_length=0.08*length, 
+                fc='blue', ec='blue', width=0.01*length)
+        
+        # 法向加速度（向心加速度）
+        a_scale = 0.2 * length  # 缩放因子
+        anx = -a_scale * omega**2 * np.cos(angle)
+        any = a_scale * omega**2 * np.sin(angle)
+        ax.arrow(x, y, anx, any, head_width=0.05*length, head_length=0.08*length, 
+                fc='green', ec='green', width=0.01*length)
+        
+        # 切向加速度（由重力产生）
+        at_scale = 0.2 * length
+        atx = at_scale * gravity/length * np.sin(angle) * np.cos(angle)
+        aty = at_scale * gravity/length * np.sin(angle) * np.sin(angle)
+        ax.arrow(x, y, atx, aty, head_width=0.05*length, head_length=0.08*length, 
+                fc='purple', ec='purple', width=0.01*length)
     
-    ax.legend(['Path', 'Trail', 'Pendulum'], loc='upper right')
+    # 添加重力示意
+    grav_len = 0.2 * length
+    ax.arrow(x, y, 0, grav_len, head_width=0.05*length, head_length=0.08*length, 
+            fc='black', ec='black', width=0.01*length, alpha=0.5)
+    ax.text(x + 0.05*length, y + grav_len/2, 'g', fontsize=12)
+    
+    # 绘制角度弧
+    arc_radius = 0.2 * length
+    theta1 = 90  # 垂直向下的角度
+    theta2 = np.rad2deg(angle)
+    ax.add_patch(plt.matplotlib.patches.Arc((0, 0), arc_radius*2, arc_radius*2, 
+                                           theta1=theta1, theta2=theta2, color='blue'))
+    ax.text(arc_radius/2 * np.sin(angle/2), -arc_radius/2 * np.cos(angle/2), 
+           f'θ={np.rad2deg(angle):.1f}°', fontsize=10)
+    
+    # 添加文本信息
+    ax.set_title('单摆运动详细分析', fontsize=14)
+    
+    # 添加状态信息文本框
+    info_text = (
+        f"时间: {time_val[frame_idx]:.2f} s\n"
+        f"角度: {angle:.2f} rad ({np.rad2deg(angle):.1f}°)\n"
+        f"周期: {2*np.pi*np.sqrt(length/gravity):.4f} s\n"
+        f"位置: ({x:.3f}, {y:.3f}) m"
+    )
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.02, 0.98, info_text, transform=ax.transAxes, fontsize=10,
+           verticalalignment='top', bbox=props)
+    
+    # 添加图例
+    ax.legend(['轨迹', '近期轨迹', '摆点', '摆杆', '摆球'], 
+             loc='lower right', fontsize=8)
+    
     fig.tight_layout()
-    
     return fig
 
 # 创建Plotly交互式动画
@@ -495,6 +557,95 @@ if app_mode == "单摆基本模拟":
                 )
                 st.plotly_chart(plotly_fig, use_container_width=True)
                 st.caption("提示：使用播放按钮观看动画，拖动时间滑块可以查看特定时刻")
+                
+                # 添加实时数据显示面板
+                st.subheader("实时物理数据")
+                
+                # 创建时间滑块，用于选择查看特定时刻的数据
+                time_idx = st.slider(
+                    "选择时间点 (秒)",
+                    min_value=float(time_data[0]),
+                    max_value=float(time_data[-1]),
+                    value=float(time_data[0]),
+                    step=float((time_data[-1] - time_data[0]) / 100),
+                )
+                
+                # 找到最接近选定时间的索引
+                closest_idx = np.argmin(np.abs(time_data - time_idx))
+                
+                # 创建三列布局
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    # 角度和角速度
+                    st.metric("角度 (rad)", f"{angle_data[closest_idx]:.4f}")
+                    st.metric("角速度 (rad/s)", f"{angular_velocity[closest_idx]:.4f}")
+                    st.metric("位移 X (m)", f"{x_position[closest_idx]:.4f}")
+                    st.metric("位移 Y (m)", f"{y_position[closest_idx]:.4f}")
+                    
+                with col2:
+                    # 能量数据
+                    st.metric("动能 (J)", f"{kinetic_energy[closest_idx]:.6f}")
+                    st.metric("势能 (J)", f"{potential_energy[closest_idx]:.6f}")
+                    st.metric("总能量 (J)", f"{total_energy[closest_idx]:.6f}")
+                    
+                    # 计算当前能量损失百分比（相对于初始能量）
+                    energy_loss_percent = (1 - total_energy[closest_idx]/total_energy[0]) * 100
+                    st.metric("能量损失", f"{energy_loss_percent:.2f}%", 
+                             delta=f"-{energy_loss_percent:.2f}%", 
+                             delta_color="inverse")
+                    
+                with col3:
+                    # 理论与实测数据比较
+                    current_period = 2 * np.pi * np.sqrt(length / gravity)
+                    
+                    # 修正周期（考虑大角度效应）
+                    angle_correction = 1 + np.sin(initial_angle_rad/2)**2 / 16
+                    corrected_period = current_period * angle_correction
+                    
+                    st.metric("理论周期 (s)", f"{current_period:.6f}")
+                    st.metric("修正周期 (s)", f"{corrected_period:.6f}")
+                    st.metric("实测周期 (s)", f"{avg_period:.6f}")
+                    
+                    # 计算相对误差
+                    period_error = (avg_period - corrected_period) / corrected_period * 100
+                    st.metric("周期相对误差", f"{period_error:.4f}%", 
+                             delta=f"{period_error:.4f}%", 
+                             delta_color="normal" if abs(period_error) < 1 else "inverse")
+                
+                # 添加动画当前时刻对应的瞬时数据可视化
+                with st.expander("瞬时力学分析", expanded=True):
+                    # 创建当前时刻的力学分析图
+                    force_fig = plt.figure(figsize=(10, 6))
+                    
+                    # 1. 角度与角速度关系子图
+                    ax1 = force_fig.add_subplot(1, 2, 1, polar=True)
+                    # 绘制当前角度的射线
+                    ax1.plot([0, angle_data[closest_idx]], [0, 1], 'r-', linewidth=2)
+                    ax1.set_rticks([0.25, 0.5, 0.75, 1])
+                    ax1.set_rlabel_position(angle_data[closest_idx] * 180/np.pi + 90)
+                    ax1.set_title("当前角度位置")
+                    
+                    # 2. 能量条形图
+                    ax2 = force_fig.add_subplot(1, 2, 2)
+                    energy_types = ['动能', '势能', '总能量']
+                    energy_values = [kinetic_energy[closest_idx], 
+                                    potential_energy[closest_idx], 
+                                    total_energy[closest_idx]]
+                    colors = ['blue', 'red', 'green']
+                    
+                    ax2.bar(energy_types, energy_values, color=colors)
+                    ax2.set_ylabel('能量 (J)')
+                    ax2.set_title(f'能量分布 (t={time_data[closest_idx]:.2f}s)')
+                    
+                    # 添加初始能量水平线作为参考
+                    ax2.axhline(y=total_energy[0], color='black', linestyle='--', 
+                               alpha=0.7, label='初始能量')
+                    ax2.legend()
+                    
+                    force_fig.tight_layout()
+                    st.pyplot(force_fig)
+                    plt.close(force_fig)
         else:
             # 原始的帧序列动画
             st.write("**动画控制**")
@@ -511,6 +662,9 @@ if app_mode == "单摆基本模拟":
             animation_container = st.empty()
             status_container = st.empty()
             
+            # 添加实时数据显示容器
+            data_display_container = st.container()
+            
             # 当用户点击播放按钮时，运行动画
             if play_animation:
                 # 计算帧索引
@@ -524,10 +678,38 @@ if app_mode == "单摆基本模拟":
                     
                     # 创建帧
                     fig = create_pendulum_frame(
-                        x_position, y_position, time_data, length, gravity, idx
+                        x_position, y_position, time_data, length, gravity, idx, angle_data, angular_velocity
                     )
                     animation_container.pyplot(fig)
                     plt.close(fig)  # 关闭图表以释放内存
+                    
+                    # 更新实时数据显示
+                    with data_display_container:
+                        # 创建三列布局
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            # 位置和速度数据
+                            st.metric("时间 (s)", f"{time_data[idx]:.3f}")
+                            st.metric("角度 (rad)", f"{angle_data[idx]:.4f}")
+                            st.metric("角速度 (rad/s)", f"{angular_velocity[idx]:.4f}")
+                        
+                        with col2:
+                            # 能量数据
+                            st.metric("动能 (J)", f"{kinetic_energy[idx]:.6f}")
+                            st.metric("势能 (J)", f"{potential_energy[idx]:.6f}")
+                            st.metric("总能量 (J)", f"{total_energy[idx]:.6f}")
+                        
+                        with col3:
+                            # 位置数据
+                            st.metric("X位置 (m)", f"{x_position[idx]:.4f}")
+                            st.metric("Y位置 (m)", f"{y_position[idx]:.4f}")
+                            
+                            # 计算速度大小
+                            vx = length * angular_velocity[idx] * np.cos(angle_data[idx])
+                            vy = length * angular_velocity[idx] * np.sin(angle_data[idx])
+                            v = np.sqrt(vx**2 + vy**2)
+                            st.metric("速度大小 (m/s)", f"{v:.4f}")
                     
                     # 控制帧速率
                     delay = 0.2 / frame_speed  # 基本延迟200ms，除以速度
@@ -538,11 +720,69 @@ if app_mode == "单摆基本模拟":
             else:
                 # 初始帧
                 fig = create_pendulum_frame(
-                    x_position, y_position, time_data, length, gravity, 0
+                    x_position, y_position, time_data, length, gravity, 0, angle_data, angular_velocity
                 )
                 animation_container.pyplot(fig)
                 plt.close(fig)
                 status_container.info("点击'播放动画'按钮开始播放。")
+                
+                # 显示初始状态数据
+                with data_display_container:
+                    st.subheader("初始状态数据")
+                    
+                    # 创建三列布局
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        # 位置和速度数据
+                        st.metric("时间 (s)", f"{time_data[0]:.3f}")
+                        st.metric("角度 (rad)", f"{angle_data[0]:.4f}")
+                        st.metric("角速度 (rad/s)", f"{angular_velocity[0]:.4f}")
+                    
+                    with col2:
+                        # 能量数据
+                        st.metric("动能 (J)", f"{kinetic_energy[0]:.6f}")
+                        st.metric("势能 (J)", f"{potential_energy[0]:.6f}")
+                        st.metric("总能量 (J)", f"{total_energy[0]:.6f}")
+                    
+                    with col3:
+                        # 位置数据
+                        st.metric("X位置 (m)", f"{x_position[0]:.4f}")
+                        st.metric("Y位置 (m)", f"{y_position[0]:.4f}")
+                        
+                        # 计算速度大小
+                        vx = length * angular_velocity[0] * np.cos(angle_data[0])
+                        vy = length * angular_velocity[0] * np.sin(angle_data[0])
+                        v = np.sqrt(vx**2 + vy**2)
+                        st.metric("速度大小 (m/s)", f"{v:.4f}")
+                        
+                    # 添加理论数据对比图表
+                    st.subheader("理论与实测周期对比")
+                    theory_period = 2 * np.pi * np.sqrt(length / gravity)
+                    angle_correction = 1 + np.sin(initial_angle_rad/2)**2 / 16
+                    corrected_period = theory_period * angle_correction
+                    
+                    data = {
+                        '类型': ['小角近似周期', '大角修正周期', '实测平均周期'],
+                        '周期值 (s)': [theory_period, corrected_period, avg_period]
+                    }
+                    
+                    chart = plt.figure(figsize=(10, 4))
+                    ax = chart.add_subplot(111)
+                    bars = ax.bar(data['类型'], data['周期值 (s)'], color=['blue', 'green', 'red'])
+                    
+                    # 添加数值标签
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                               f'{height:.6f}s', ha='center', va='bottom')
+                    
+                    ax.set_ylabel('周期 (秒)')
+                    ax.set_title('周期对比')
+                    chart.tight_layout()
+                    
+                    st.pyplot(chart)
+                    plt.close(chart)
     
     with tab2:
         # 手动生成可视化图表
