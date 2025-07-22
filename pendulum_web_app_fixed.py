@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from pendulum_simulation import PendulumSimulation
 from data_analyzer import DataAnalyzer
 import base64
@@ -43,42 +44,94 @@ with st.sidebar.expander("基础参数", expanded=True):
 # 将度数转换为弧度
 initial_angle_rad = np.deg2rad(initial_angle)
 
-# 创建简单的单帧单摆图像
-def create_pendulum_frame(pendulum, frame_idx):
-    """创建单摆动画的单一帧"""
-    # 创建图表
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
-    ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
-    ax.grid(True)
-    
+# 创建优化的动画GIF
+def create_pendulum_animation_gif(pendulum, fps=15, duration=5):
+    """
+    创建单摆运动的动画GIF，更丝滑，反应更敏捷
+    """
     # 获取数据
     time_data = pendulum.simulation_results['time']
     x_pos = pendulum.simulation_results['x_position']
     y_pos = pendulum.simulation_results['y_position']
     
-    # 绘制轨迹 - 仅到当前帧
-    ax.plot(x_pos[:frame_idx+1], y_pos[:frame_idx+1], 'r-', alpha=0.3, label='Trajectory')
+    # 计算帧数，确保动画足够丝滑
+    num_frames = min(int(fps * duration), len(time_data))
+    frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
     
-    # 当前帧的位置
-    x = x_pos[frame_idx]
-    y = y_pos[frame_idx]
+    # 创建图表
+    fig, ax = plt.subplots(figsize=(7, 7), dpi=100)
+    ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
+    ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
+    ax.grid(True)
     
-    # 绘制摆点和摆杆
-    ax.plot([0], [0], 'ko', markersize=8)  # 摆点
-    ax.plot([0, x], [0, y], 'k-', linewidth=2)  # 摆杆
-    ax.plot([x], [y], 'ro', markersize=10)  # 摆球
+    # 绘制完整轨迹线（变浅，作为背景）
+    ax.plot(x_pos, y_pos, 'r-', alpha=0.1, linewidth=1)
     
-    # 添加文本
+    # 创建单摆元素
+    line, = ax.plot([], [], 'k-', linewidth=2)  # 摆杆
+    mass_point, = ax.plot([], [], 'ro', markersize=10)  # 摆球
+    pivot = ax.plot([0], [0], 'ko', markersize=8)[0]  # 摆点
+    
+    # 创建轨迹线（只显示最近的一部分）
+    trail, = ax.plot([], [], 'r-', alpha=0.5, linewidth=1.5)
+    
+    # 创建文本
+    time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=10)
+    period_text = ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(pendulum.length/pendulum.gravity):.4f} s', 
+                         transform=ax.transAxes, fontsize=10)
+    
     ax.set_title('Pendulum Motion Animation')
-    ax.text(0.02, 0.95, f'Time: {time_data[frame_idx]:.2f} s', transform=ax.transAxes)
-    ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(pendulum.length/pendulum.gravity):.4f} s', 
-            transform=ax.transAxes)
+    ax.legend(['Full Path', 'Pendulum'], loc='upper right')
     
-    ax.legend(loc='upper right')
-    fig.tight_layout()
+    # 初始化函数
+    def init():
+        line.set_data([], [])
+        mass_point.set_data([], [])
+        trail.set_data([], [])
+        time_text.set_text('')
+        return line, mass_point, trail, time_text
     
-    return fig
+    # 动画更新函数
+    def update(frame):
+        i = frame_indices[frame]
+        x = x_pos[i]
+        y = y_pos[i]
+        
+        # 摆杆
+        line.set_data([0, x], [0, y])
+        # 摆球
+        mass_point.set_data([x], [y])
+        
+        # 轨迹 - 只显示最近的20个点
+        trail_start = max(0, i - 20)
+        trail.set_data(x_pos[trail_start:i+1], y_pos[trail_start:i+1])
+        
+        # 时间
+        time_text.set_text(f'Time: {time_data[i]:.2f} s')
+        
+        return line, mass_point, trail, time_text
+    
+    # 创建动画
+    anim = animation.FuncAnimation(
+        fig, update, frames=len(frame_indices), 
+        init_func=init, blit=True, interval=1000/fps
+    )
+    
+    # 保存为GIF
+    buffer = BytesIO()
+    anim.save(buffer, writer='pillow', fps=fps, dpi=80)
+    buffer.seek(0)
+    
+    plt.close(fig)
+    
+    # 返回base64编码的GIF
+    return buffer.getvalue()
+
+# 转换GIF为base64以嵌入HTML
+def get_img_tag(image_data):
+    """将图像数据转换为HTML图像标签"""
+    encoded = base64.b64encode(image_data).decode("utf-8")
+    return f'<img src="data:image/gif;base64,{encoded}" alt="Pendulum Animation" style="width: 100%; max-width: 500px;">'
 
 # 修改PendulumSimulation类的visualize方法中的中文标签（在实际运行时进行替换）
 def modify_pendulum_visualization(pendulum):
@@ -212,36 +265,59 @@ if app_mode == "单摆基本模拟":
     tab1, tab2, tab3 = st.tabs(["动画", "图表", "数据"])
     
     with tab1:
-        # 创建动画容器
-        st.info("下面是单摆运动的动画示例。点击播放按钮观看动画。")
+        # 动画设置
+        st.info("单摆运动动画。调整左侧参数后点击'生成动画'查看不同条件下的运动。")
         
-        # 动画控制
-        animation_speed = st.slider("动画速度", 1, 10, 5, 1)
-        play_button = st.button("播放动画")
-        
-        # 创建一个placeholder来放置动画帧
-        animation_placeholder = st.empty()
-        
-        # 动画初始帧
-        initial_frame = create_pendulum_frame(pendulum, 0)
-        animation_placeholder.pyplot(initial_frame)
-        plt.close(initial_frame)
-        
-        # 当用户点击播放按钮时
-        if play_button:
-            # 计算动画帧
-            num_frames = min(50, len(results["time"]))  # 限制帧数以保持性能
-            frame_indices = np.linspace(0, len(results["time"]) - 1, num_frames).astype(int)
+        col_left, col_right = st.columns([2, 1])
+        with col_right:
+            # 动画控制选项
+            animation_duration = st.slider("动画持续时间(秒)", 3, 10, 5)
+            animation_fps = st.slider("动画帧率", 10, 30, 20)
+            generate_button = st.button("生成动画", use_container_width=True)
             
-            # 播放动画
-            for idx in frame_indices:
-                frame = create_pendulum_frame(pendulum, idx)
-                animation_placeholder.pyplot(frame)
-                plt.close(frame)  # 关闭图表以释放内存
-                time.sleep(0.1 / animation_speed)  # 控制帧速率
-                
-            # 显示完成消息
-            st.success("动画播放完成！点击\"播放动画\"按钮重新播放。")
+            # 添加一些动画说明
+            st.markdown("""
+            **动画说明：**
+            - 红色实线：单摆轨迹
+            - 浅红色线：完整运动路径
+            - 帧率越高，动画越丝滑
+            - 持续时间影响动画速度
+            """)
+        
+        with col_left:
+            # 创建动画容器
+            animation_container = st.empty()
+            
+            # 生成并显示动画
+            if generate_button or 'animation_html' not in st.session_state:
+                with st.spinner("正在生成动画..."):
+                    try:
+                        # 生成动画GIF
+                        gif_data = create_pendulum_animation_gif(
+                            pendulum, 
+                            fps=animation_fps,
+                            duration=animation_duration
+                        )
+                        
+                        # 转换为HTML图像标签
+                        animation_html = get_img_tag(gif_data)
+                        st.session_state['animation_html'] = animation_html
+                        st.session_state['param_key'] = f"{length}_{mass}_{gravity}_{damping}_{initial_angle}_{t_end}"
+                        
+                        # 显示动画
+                        animation_container.markdown(animation_html, unsafe_allow_html=True)
+                        st.success("动画生成成功！")
+                    except Exception as e:
+                        st.error(f"生成动画时出错: {e}")
+                        animation_container.error("无法生成动画，请尝试调整参数后重试。")
+            else:
+                # 检查参数是否更改
+                current_params = f"{length}_{mass}_{gravity}_{damping}_{initial_angle}_{t_end}"
+                if 'param_key' not in st.session_state or st.session_state['param_key'] != current_params:
+                    animation_container.info("参数已更改，点击'生成动画'按钮查看新的动画")
+                else:
+                    # 显示之前生成的动画
+                    animation_container.markdown(st.session_state['animation_html'], unsafe_allow_html=True)
     
     with tab2:
         # 生成可视化
