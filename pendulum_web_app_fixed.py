@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go  # 添加Plotly支持
 from pendulum_simulation import PendulumSimulation
 from data_analyzer import DataAnalyzer
 import base64
@@ -8,6 +9,7 @@ from io import BytesIO
 import matplotlib
 matplotlib.rcParams['axes.unicode_minus'] = False
 import time
+import pandas as pd  # 确保pandas被导入
 
 # 设置页面
 st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
@@ -75,6 +77,187 @@ def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx):
     
     ax.legend(['Path', 'Trail', 'Pendulum'], loc='upper right')
     fig.tight_layout()
+    
+    return fig
+
+# 创建Plotly交互式动画
+def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity):
+    """创建Plotly交互式单摆动画"""
+    # 数据准备
+    pendulum_data = pd.DataFrame({
+        'time': time_data,
+        'x_pos': x_pos,
+        'y_pos': y_pos
+    })
+
+    # 计算理论周期
+    period = 2*np.pi*np.sqrt(length/gravity)
+    
+    # 创建基本图形
+    fig = go.Figure()
+    
+    # 添加摆长
+    fig.add_trace(
+        go.Scatter(
+            x=[0, x_pos[0]], 
+            y=[0, y_pos[0]], 
+            mode='lines', 
+            line=dict(color='black', width=3),
+            name='Pendulum Rod',
+            showlegend=False
+        )
+    )
+    
+    # 添加摆球
+    fig.add_trace(
+        go.Scatter(
+            x=[x_pos[0]], 
+            y=[y_pos[0]], 
+            mode='markers', 
+            marker=dict(color='red', size=15),
+            name='Pendulum Ball',
+            showlegend=False
+        )
+    )
+    
+    # 添加摆点
+    fig.add_trace(
+        go.Scatter(
+            x=[0], 
+            y=[0], 
+            mode='markers', 
+            marker=dict(color='black', size=10),
+            name='Pivot Point',
+            showlegend=False
+        )
+    )
+    
+    # 添加轨迹
+    fig.add_trace(
+        go.Scatter(
+            x=x_pos[:1], 
+            y=y_pos[:1], 
+            mode='lines', 
+            line=dict(color='rgba(255,0,0,0.3)', width=2),
+            name='Trajectory',
+            showlegend=False
+        )
+    )
+    
+    # 设置布局
+    axis_range = 1.5 * length
+    fig.update_layout(
+        title=f"Pendulum Motion (Period: {period:.4f}s)",
+        xaxis=dict(
+            range=[-axis_range, axis_range],
+            title="X Position (m)",
+            zeroline=True
+        ),
+        yaxis=dict(
+            range=[-axis_range, 0.5 * length],
+            title="Y Position (m)",
+            zeroline=True,
+            scaleanchor="x",  # 保持坐标轴比例一致
+            scaleratio=1
+        ),
+        updatemenus=[{
+            'type': 'buttons',
+            'buttons': [
+                dict(
+                    label="Play",
+                    method="animate",
+                    args=[None, {
+                        "frame": {"duration": 50, "redraw": True},
+                        "fromcurrent": True,
+                        "transition": {"duration": 0}
+                    }]
+                ),
+                dict(
+                    label="Pause",
+                    method="animate",
+                    args=[[None], {
+                        "frame": {"duration": 0, "redraw": True},
+                        "mode": "immediate",
+                        "transition": {"duration": 0}
+                    }]
+                )
+            ],
+            'direction': 'left',
+            'pad': {'l': 10, 'r': 10, 't': 10, 'b': 10},
+            'showactive': False,
+            'x': 0.1,
+            'y': 0,
+            'xanchor': 'right',
+            'yanchor': 'top'
+        }],
+        sliders=[{
+            'steps': [
+                {
+                    'method': 'animate',
+                    'label': f'{time_data[i]:.1f}s',
+                    'args': [[f'frame{i}'], {
+                        'frame': {'duration': 0, 'redraw': True},
+                        'mode': 'immediate',
+                        'transition': {'duration': 0}
+                    }]
+                } for i in range(0, len(time_data), max(1, len(time_data) // 10))
+            ],
+            'x': 0.1,
+            'y': 0,
+            'len': 0.9,
+            'pad': {'l': 10, 'r': 10, 't': 50, 'b': 10},
+            'currentvalue': {
+                'visible': True,
+                'prefix': 'Time: ',
+                'xanchor': 'right',
+                'font': {'size': 12, 'color': '#666'}
+            },
+            'transition': {'duration': 0},
+            'active': 0
+        }],
+        height=600,
+        margin=dict(l=50, r=50, t=50, b=50),
+        grid=dict(rows=1, columns=1),
+        paper_bgcolor='rgba(255,255,255,0.9)',
+        plot_bgcolor='rgba(245,245,245,0.9)'
+    )
+    
+    # 创建动画帧
+    frames = []
+    num_frames = min(100, len(time_data))  # 限制帧数以保持性能
+    frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
+    
+    for i, idx in enumerate(frame_indices):
+        trail_start = max(0, idx - 30)  # 只显示最近的30个点
+        
+        frame = go.Frame(
+            name=f'frame{idx}',
+            data=[
+                # 更新摆杆位置
+                go.Scatter(
+                    x=[0, x_pos[idx]], 
+                    y=[0, y_pos[idx]]
+                ),
+                # 更新摆球位置
+                go.Scatter(
+                    x=[x_pos[idx]], 
+                    y=[y_pos[idx]]
+                ),
+                # 保持摆点不变
+                go.Scatter(
+                    x=[0], 
+                    y=[0]
+                ),
+                # 更新轨迹
+                go.Scatter(
+                    x=x_pos[trail_start:idx+1], 
+                    y=y_pos[trail_start:idx+1]
+                )
+            ]
+        )
+        frames.append(frame)
+    
+    fig.frames = frames
     
     return fig
 
@@ -190,55 +373,71 @@ if app_mode == "单摆基本模拟":
     
     with tab1:
         # 动画设置
-        st.info("单摆运动动画。实时显示单摆运动情况。")
+        st.info("单摆运动动画。使用交互式控件播放、暂停和拖动时间滑块。")
         
-        # 动画控制
-        st.write("**动画控制**")
-        col1, col2, col3 = st.columns([1, 1, 1])
+        # 动画选择
+        animation_type = st.radio(
+            "选择动画类型",
+            ["Plotly交互动画", "帧序列动画"],
+            horizontal=True
+        )
         
-        with col1:
-            play_animation = st.button("播放动画", use_container_width=True)
-        with col2:
-            frame_speed = st.slider("播放速度", 1, 10, 5, 1)
-        with col3:
-            num_frames = st.slider("帧数", 20, 100, 50, 10)
-        
-        # 动画显示区域
-        animation_container = st.empty()
-        status_container = st.empty()
-        
-        # 当用户点击播放按钮时，运行动画
-        if play_animation:
-            # 计算帧索引
-            frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
+        if animation_type == "Plotly交互动画":
+            # 使用Plotly创建交互式动画
+            with st.spinner("生成交互式动画..."):
+                plotly_fig = create_plotly_pendulum_animation(
+                    x_position, y_position, time_data, length, gravity
+                )
+                st.plotly_chart(plotly_fig, use_container_width=True)
+                st.caption("提示：使用播放按钮观看动画，拖动时间滑块可以查看特定时刻")
+        else:
+            # 原始的帧序列动画
+            st.write("**动画控制**")
+            col1, col2, col3 = st.columns([1, 1, 1])
             
-            # 播放动画
-            for i, idx in enumerate(frame_indices):
-                # 显示进度
-                progress = (i + 1) / len(frame_indices)
-                status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
+            with col1:
+                play_animation = st.button("播放动画", use_container_width=True)
+            with col2:
+                frame_speed = st.slider("播放速度", 1, 10, 5, 1)
+            with col3:
+                num_frames = st.slider("帧数", 20, 100, 50, 10)
+            
+            # 动画显示区域
+            animation_container = st.empty()
+            status_container = st.empty()
+            
+            # 当用户点击播放按钮时，运行动画
+            if play_animation:
+                # 计算帧索引
+                frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
                 
-                # 创建帧
+                # 播放动画
+                for i, idx in enumerate(frame_indices):
+                    # 显示进度
+                    progress = (i + 1) / len(frame_indices)
+                    status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
+                    
+                    # 创建帧
+                    fig = create_pendulum_frame(
+                        x_position, y_position, time_data, length, gravity, idx
+                    )
+                    animation_container.pyplot(fig)
+                    plt.close(fig)  # 关闭图表以释放内存
+                    
+                    # 控制帧速率
+                    delay = 0.2 / frame_speed  # 基本延迟200ms，除以速度
+                    time.sleep(delay)
+                
+                # 动画完成
+                status_container.success("动画播放完成！点击'播放动画'按钮重新播放。")
+            else:
+                # 初始帧
                 fig = create_pendulum_frame(
-                    x_position, y_position, time_data, length, gravity, idx
+                    x_position, y_position, time_data, length, gravity, 0
                 )
                 animation_container.pyplot(fig)
-                plt.close(fig)  # 关闭图表以释放内存
-                
-                # 控制帧速率
-                delay = 0.2 / frame_speed  # 基本延迟200ms，除以速度
-                time.sleep(delay)
-            
-            # 动画完成
-            status_container.success("动画播放完成！点击'播放动画'按钮重新播放。")
-        else:
-            # 初始帧
-            fig = create_pendulum_frame(
-                x_position, y_position, time_data, length, gravity, 0
-            )
-            animation_container.pyplot(fig)
-            plt.close(fig)
-            status_container.info("点击'播放动画'按钮开始播放。")
+                plt.close(fig)
+                status_container.info("点击'播放动画'按钮开始播放。")
     
     with tab2:
         # 手动生成可视化图表
