@@ -44,17 +44,12 @@ with st.sidebar.expander("基础参数", expanded=True):
 initial_angle_rad = np.deg2rad(initial_angle)
 
 # 创建单帧图像
-def create_pendulum_frame(pendulum, frame_idx):
+def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx):
     """创建单摆运动的单一帧"""
-    # 获取数据
-    time_data = pendulum.simulation_results['time']
-    x_pos = pendulum.simulation_results['x_position']
-    y_pos = pendulum.simulation_results['y_position']
-    
     # 创建图表
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
-    ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
+    ax.set_xlim(-1.5*length, 1.5*length)
+    ax.set_ylim(-1.5*length, 0.5*length)
     ax.grid(True)
     
     # 绘制完整轨迹线（变浅，作为背景）
@@ -75,110 +70,56 @@ def create_pendulum_frame(pendulum, frame_idx):
     
     # 添加文本
     ax.set_title('Pendulum Motion Animation')
-    ax.text(0.02, 0.95, f'Time: {time_data[frame_idx]:.2f} s', transform=ax.transAxes)
-    ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(pendulum.length/pendulum.gravity):.4f} s', transform=ax.transAxes)
+    ax.text(0.02, 0.95, f'Time: {time_val[frame_idx]:.2f} s', transform=ax.transAxes)
+    ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(length/gravity):.4f} s', transform=ax.transAxes)
     
     ax.legend(['Path', 'Trail', 'Pendulum'], loc='upper right')
     fig.tight_layout()
     
     return fig
 
-# 修改PendulumSimulation类的visualize方法中的中文标签（在实际运行时进行替换）
-def modify_pendulum_visualization(pendulum):
-    """修改单摆可视化方法，使用英文标签"""
-    original_visualize = pendulum.visualize
-    
-    def new_visualize():
-        fig = original_visualize()
-        
-        # 替换图表中的标题和标签为英文
-        for ax in fig.axes:
-            if "角度" in ax.get_title():
-                ax.set_title("Angle vs Time")
-            elif "相位" in ax.get_title():
-                ax.set_title("Phase Space")
-            elif "位置" in ax.get_title():
-                ax.set_title("Position vs Time")
-            elif "能量" in ax.get_title():
-                ax.set_title("Energy vs Time")
-            elif "周期" in ax.get_title():
-                ax.set_title("Period Measurement")
-            elif "验证" in ax.get_title():
-                ax.set_title("T² vs L Relationship")
-                
-            # 替换坐标轴标签
-            if "时间" in ax.get_xlabel():
-                ax.set_xlabel("Time (s)")
-            elif "摆长" in ax.get_xlabel():
-                ax.set_xlabel("Length (m)")
+# 修改PendulumSimulation类的visualize方法中的中文标签
+def apply_english_labels(fig):
+    """将图表中的中文标签替换为英文标签"""
+    for ax in fig.axes:
+        if "角度" in ax.get_title():
+            ax.set_title("Angle vs Time")
+        elif "相位" in ax.get_title():
+            ax.set_title("Phase Space")
+        elif "位置" in ax.get_title():
+            ax.set_title("Position vs Time")
+        elif "能量" in ax.get_title():
+            ax.set_title("Energy vs Time")
+        elif "周期" in ax.get_title():
+            ax.set_title("Period Measurement")
+        elif "验证" in ax.get_title():
+            ax.set_title("T² vs L Relationship")
             
-            if "角度" in ax.get_ylabel():
-                ax.set_ylabel("Angle (rad)")
-            elif "角速度" in ax.get_ylabel():
-                ax.set_ylabel("Angular Velocity (rad/s)")
-            elif "位置" in ax.get_ylabel():
-                ax.set_ylabel("Position (m)")
-            elif "能量" in ax.get_ylabel():
-                ax.set_ylabel("Energy (J)")
-            elif "周期" in ax.get_ylabel():
-                ax.set_ylabel("Period (s)")
-            elif "周期平方" in ax.get_ylabel():
-                ax.set_ylabel("Period² (s²)")
+        # 替换坐标轴标签
+        if "时间" in ax.get_xlabel():
+            ax.set_xlabel("Time (s)")
+        elif "摆长" in ax.get_xlabel():
+            ax.set_xlabel("Length (m)")
         
-        return fig
+        if "角度" in ax.get_ylabel():
+            ax.set_ylabel("Angle (rad)")
+        elif "角速度" in ax.get_ylabel():
+            ax.set_ylabel("Angular Velocity (rad/s)")
+        elif "位置" in ax.get_ylabel():
+            ax.set_ylabel("Position (m)")
+        elif "能量" in ax.get_ylabel():
+            ax.set_ylabel("Energy (J)")
+        elif "周期" in ax.get_ylabel():
+            ax.set_ylabel("Period (s)")
+        elif "周期平方" in ax.get_ylabel():
+            ax.set_ylabel("Period² (s²)")
     
-    pendulum.visualize = new_visualize
-    return pendulum
-
-# 修改DataAnalyzer类的可视化方法
-def modify_analyzer_visualization(analyzer):
-    """修改数据分析器可视化方法，使用英文标签"""
-    original_visualize_comparison = analyzer.visualize_comparison
-    
-    def new_visualize_comparison():
-        fig = original_visualize_comparison()
-        
-        # 替换图表中的标题和标签为英文
-        for ax in fig.axes:
-            if "角度" in ax.get_title():
-                ax.set_title("Angle vs Time")
-            elif "相位" in ax.get_title():
-                ax.set_title("Phase Space")
-            elif "位置" in ax.get_title():
-                ax.set_title("Position vs Time")
-            elif "能量" in ax.get_title():
-                ax.set_title("Energy vs Time")
-                
-            # 替换坐标轴标签
-            if "时间" in ax.get_xlabel():
-                ax.set_xlabel("Time (s)")
-            
-            if "角度" in ax.get_ylabel():
-                ax.set_ylabel("Angle (rad)")
-            elif "角速度" in ax.get_ylabel():
-                ax.set_ylabel("Angular Velocity (rad/s)")
-            elif "位置" in ax.get_ylabel():
-                ax.set_ylabel("Position (m)")
-            elif "能量" in ax.get_ylabel():
-                ax.set_ylabel("Energy (J)")
-            
-            # 替换图例
-            if ax.get_legend():
-                for text in ax.get_legend().texts:
-                    if "理论" in text.get_text():
-                        text.set_text("Theory")
-                    elif "实验" in text.get_text():
-                        text.set_text("Experiment")
-        
-        return fig
-    
-    analyzer.visualize_comparison = new_visualize_comparison
-    return analyzer
+    return fig
 
 # 使用"缓存运行"以保存模拟结果，避免重复计算
 @st.cache_data
-def run_simulation(length, mass, gravity, damping, initial_angle_rad, t_end):
-    """运行单摆模拟并返回结果（带缓存）"""
+def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end):
+    """运行单摆模拟并返回可序列化的数据（带缓存）"""
     pendulum = PendulumSimulation(
         length=length, 
         mass=mass, 
@@ -186,9 +127,6 @@ def run_simulation(length, mass, gravity, damping, initial_angle_rad, t_end):
         damping=damping, 
         initial_angle=initial_angle_rad
     )
-    
-    # 修改可视化方法
-    pendulum = modify_pendulum_visualization(pendulum)
     
     # 运行模拟
     results = pendulum.simulate(t_span=(0, t_end), t_points=500)
@@ -199,16 +137,36 @@ def run_simulation(length, mass, gravity, damping, initial_angle_rad, t_end):
     # 计算重力加速度
     g_calculated = pendulum.calculate_gravity()
     
-    return pendulum, results, periods, avg_period, g_calculated
+    # 只返回可序列化的数据，不返回pendulum对象
+    return {
+        "time": results["time"].tolist(),  # 转换numpy数组为列表以便序列化
+        "angle": results["angle"].tolist(),
+        "x_position": results["x_position"].tolist(),
+        "y_position": results["y_position"].tolist(),
+        "total_energy": results["total_energy"].tolist(),
+        "periods": periods,
+        "avg_period": avg_period,
+        "g_calculated": g_calculated
+    }
 
 if app_mode == "单摆基本模拟":
     st.header("单摆基本模拟")
     
     # 使用缓存运行模拟
     with st.spinner("运行单摆模拟..."):
-        pendulum, results, periods, avg_period, g_calculated = run_simulation(
+        sim_data = run_simulation_data(
             length, mass, gravity, damping, initial_angle_rad, t_end
         )
+        
+        # 从缓存数据中获取结果
+        time_data = np.array(sim_data["time"])
+        angle_data = np.array(sim_data["angle"])
+        x_position = np.array(sim_data["x_position"])
+        y_position = np.array(sim_data["y_position"])
+        total_energy = np.array(sim_data["total_energy"])
+        periods = sim_data["periods"]
+        avg_period = sim_data["avg_period"]
+        g_calculated = sim_data["g_calculated"]
     
     # 显示关键结果
     col1, col2, col3 = st.columns(3)
@@ -246,7 +204,7 @@ if app_mode == "单摆基本模拟":
         # 当用户点击播放按钮时，运行动画
         if play_animation:
             # 计算帧索引
-            frame_indices = np.linspace(0, len(results["time"]) - 1, num_frames).astype(int)
+            frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
             
             # 播放动画
             for i, idx in enumerate(frame_indices):
@@ -255,7 +213,9 @@ if app_mode == "单摆基本模拟":
                 status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
                 
                 # 创建帧
-                fig = create_pendulum_frame(pendulum, idx)
+                fig = create_pendulum_frame(
+                    x_position, y_position, time_data, length, gravity, idx
+                )
                 animation_container.pyplot(fig)
                 plt.close(fig)  # 关闭图表以释放内存
                 
@@ -267,31 +227,52 @@ if app_mode == "单摆基本模拟":
             status_container.success("动画播放完成！点击'播放动画'按钮重新播放。")
         else:
             # 初始帧
-            fig = create_pendulum_frame(pendulum, 0)
+            fig = create_pendulum_frame(
+                x_position, y_position, time_data, length, gravity, 0
+            )
             animation_container.pyplot(fig)
             plt.close(fig)
             status_container.info("点击'播放动画'按钮开始播放。")
     
     with tab2:
-        # 生成可视化
+        # 手动生成可视化图表
         with st.spinner("生成图表..."):
+            # 创建新的单摆实例来获取图表
+            pendulum = PendulumSimulation(
+                length=length, 
+                mass=mass, 
+                gravity=gravity,
+                damping=damping, 
+                initial_angle=initial_angle_rad
+            )
+            # 设置模拟结果
+            pendulum.simulation_results = {
+                "time": time_data,
+                "angle": angle_data,
+                "x_position": x_position,
+                "y_position": y_position,
+                "total_energy": total_energy
+            }
+            
+            # 生成图表并应用英文标签
             fig = pendulum.visualize()
+            fig = apply_english_labels(fig)
             st.pyplot(fig)
     
     with tab3:
         # 显示数据
         st.subheader("模拟数据")
         data = {
-            "时间 (s)": results["time"],
-            "角度 (rad)": results["angle"],
-            "X位置 (m)": results["x_position"],
-            "Y位置 (m)": results["y_position"],
-            "总能量 (J)": results["total_energy"]
+            "时间 (s)": time_data,
+            "角度 (rad)": angle_data,
+            "X位置 (m)": x_position,
+            "Y位置 (m)": y_position,
+            "总能量 (J)": total_energy
         }
         
         # 仅显示部分数据点
-        display_points = min(100, len(results["time"]))
-        step = len(results["time"]) // display_points
+        display_points = min(100, len(time_data))
+        step = len(time_data) // display_points
         
         for key in data:
             data[key] = data[key][::step]
