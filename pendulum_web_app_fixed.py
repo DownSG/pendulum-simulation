@@ -1,17 +1,19 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from pendulum_simulation import PendulumSimulation
 from data_analyzer import DataAnalyzer
 import base64
 from io import BytesIO  # 仍需用于CSV导出
-
-# 配置matplotlib基本设置
 import matplotlib
 matplotlib.rcParams['axes.unicode_minus'] = False
+import time
 
+# 设置页面
 st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
 
+# 页面标题
 st.title("单摆精确测量可视化平台")
 
 st.markdown("""
@@ -42,44 +44,64 @@ with st.sidebar.expander("基础参数", expanded=True):
 # 将度数转换为弧度
 initial_angle_rad = np.deg2rad(initial_angle)
 
-# 辅助函数：生成动画GIF
-def create_pendulum_animation(pendulum, duration=5, fps=20):
+# 改进版动画功能 - 使用HTML5方式显示真实动画
+def create_pendulum_animation_html(pendulum, duration=5):
     """
-    创建单摆运动的静态图像序列，而不是动画
+    创建单摆运动的HTML动画，使用matplotlib的Animation和HTML
     """
+    # 获取数据
+    time_data = pendulum.simulation_results['time']
+    x_pos = pendulum.simulation_results['x_position'] 
+    y_pos = pendulum.simulation_results['y_position']
+    
     # 创建图表
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
     ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
     ax.grid(True)
     
     # 绘制轨迹
-    ax.plot(pendulum.simulation_results['x_position'], 
-            pendulum.simulation_results['y_position'], 
-            'r-', alpha=0.5, label='Trajectory')
+    ax.plot(x_pos, y_pos, 'r-', alpha=0.3, label='Trajectory')
     
-    # 选择当前位置点绘制单摆
-    frame_idx = len(pendulum.simulation_results['time']) // 3  # 选择中间位置
-    x = pendulum.simulation_results['x_position'][frame_idx]
-    y = pendulum.simulation_results['y_position'][frame_idx]
+    # 创建单摆元素
+    pivot, = ax.plot([0], [0], 'ko', markersize=8)  # 摆点
+    line, = ax.plot([], [], 'k-', linewidth=2)  # 摆杆
+    mass_point, = ax.plot([], [], 'ro', markersize=10)  # 摆球
     
-    # 绘制摆点和摆球
-    ax.plot([0], [0], 'ko', markersize=8)  # 摆点
-    ax.plot([0, x], [0, y], 'k-', linewidth=2)  # 摆杆
-    ax.plot([x], [y], 'ro', markersize=10)  # 摆球
+    # 创建时间文本
+    time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+    period_text = ax.text(0.02, 0.90, f'Period: {2*np.pi*np.sqrt(pendulum.length/pendulum.gravity):.4f} s', 
+                         transform=ax.transAxes)
     
-    # 添加标题和信息 - 使用英文
-    ax.set_title('Pendulum Motion Simulation')
-    ax.text(0.02, 0.95, 'Time: {:.2f} s'.format(pendulum.simulation_results["time"][frame_idx]), 
-            transform=ax.transAxes)
-    ax.text(0.02, 0.90, 'Period: {:.4f} s'.format(2 * np.pi * np.sqrt(pendulum.length / pendulum.gravity)), 
-            transform=ax.transAxes)
+    ax.set_title('Pendulum Motion Animation')
+    ax.legend(loc='upper right')
     
-    ax.legend()
-    fig.tight_layout()
+    # 动画更新函数
+    def update(frame):
+        i = min(frame, len(time_data) - 1)  # 确保索引不超出范围
+        x = x_pos[i]
+        y = y_pos[i]
+        
+        line.set_data([0, x], [0, y])
+        mass_point.set_data([x], [y])
+        time_text.set_text(f'Time: {time_data[i]:.2f} s')
+        
+        return line, mass_point, time_text
     
-    # 返回图表而不是保存为GIF
-    return fig
+    # 计算帧数 - 确保动画平滑但不要太大
+    num_frames = min(100, len(time_data))
+    frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
+    
+    # 创建动画
+    anim = FuncAnimation(fig, 
+                         lambda i: update(frame_indices[i]), 
+                         frames=len(frame_indices), 
+                         interval=duration*1000/num_frames,  # 总持续时间(毫秒)除以帧数
+                         blit=True)
+    
+    # 转换为HTML
+    plt.close(fig)  # 防止在notebook中显示静态图
+    return anim.to_jshtml()
 
 # 修改PendulumSimulation类的visualize方法中的中文标签（在实际运行时进行替换）
 def modify_pendulum_visualization(pendulum):
@@ -188,6 +210,9 @@ if app_mode == "单摆基本模拟":
     # 修改可视化方法
     pendulum = modify_pendulum_visualization(pendulum)
     
+    # 使用会话状态跟踪参数变化
+    session_state_key = f"pendulum_{length}_{mass}_{gravity}_{damping}_{initial_angle}_{t_end}"
+    
     # 运行模拟
     with st.spinner("运行单摆模拟..."):
         results = pendulum.simulate(t_span=(0, t_end), t_points=500)
@@ -213,10 +238,13 @@ if app_mode == "单摆基本模拟":
     tab1, tab2, tab3 = st.tabs(["动画", "图表", "数据"])
     
     with tab1:
+        # 显示帮助信息
+        st.info("调整左侧的参数，动画会实时更新以显示单摆运动。")
+        
         # 创建并显示动画
         with st.spinner("生成动画..."):
-            animation_fig = create_pendulum_animation(pendulum)
-            st.pyplot(animation_fig)
+            animation_html = create_pendulum_animation_html(pendulum)
+            st.components.v1.html(animation_html, height=650)
     
     with tab2:
         # 生成可视化
