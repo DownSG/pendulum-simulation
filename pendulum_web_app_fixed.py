@@ -8,7 +8,6 @@ from io import BytesIO
 import matplotlib
 matplotlib.rcParams['axes.unicode_minus'] = False
 import time
-from PIL import Image, ImageDraw
 
 # 设置页面
 st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
@@ -45,19 +44,15 @@ with st.sidebar.expander("基础参数", expanded=True):
 initial_angle_rad = np.deg2rad(initial_angle)
 
 # 创建单帧图像
-def create_pendulum_frame(pendulum, frame_idx, fig=None, ax=None):
+def create_pendulum_frame(pendulum, frame_idx):
     """创建单摆运动的单一帧"""
     # 获取数据
     time_data = pendulum.simulation_results['time']
     x_pos = pendulum.simulation_results['x_position']
     y_pos = pendulum.simulation_results['y_position']
     
-    # 创建或重用图表
-    if fig is None or ax is None:
-        fig, ax = plt.subplots(figsize=(5, 5), dpi=72)
-    else:
-        ax.clear()
-        
+    # 创建图表
+    fig, ax = plt.subplots(figsize=(5, 5))
     ax.set_xlim(-1.5*pendulum.length, 1.5*pendulum.length)
     ax.set_ylim(-1.5*pendulum.length, 0.5*pendulum.length)
     ax.grid(True)
@@ -86,97 +81,7 @@ def create_pendulum_frame(pendulum, frame_idx, fig=None, ax=None):
     ax.legend(['Path', 'Trail', 'Pendulum'], loc='upper right')
     fig.tight_layout()
     
-    return fig, ax
-
-# 创建更丝滑的视频动画（改用静态图片序列）
-def create_pendulum_animation_sequence(pendulum, num_frames=30):
-    """创建单摆运动的图片序列"""
-    # 获取数据
-    time_data = pendulum.simulation_results['time']
-    
-    # 计算帧索引
-    frame_indices = np.linspace(0, len(time_data) - 1, num_frames).astype(int)
-    
-    # 存储每一帧的图像
-    frames = []
-    
-    # 重用图表对象以提高性能
-    fig, ax = plt.subplots(figsize=(5, 5), dpi=72)
-    
-    # 生成每一帧
-    for idx in frame_indices:
-        fig, ax = create_pendulum_frame(pendulum, idx, fig, ax)
-        
-        # 将图表转换为图像
-        buf = BytesIO()
-        fig.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.1)
-        buf.seek(0)
-        img = Image.open(buf)
-        frames.append(img)
-        buf.close()
-    
-    plt.close(fig)
-    
-    return frames
-
-# 将图像序列转换为HTML轮播
-def create_image_carousel_html(images, delay=100):
-    """创建一个HTML图像轮播"""
-    encoded_images = []
-    
-    # 编码每个图像
-    for img in images:
-        buf = BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        encoded = base64.b64encode(buf.getvalue()).decode('utf-8')
-        encoded_images.append(f'data:image/png;base64,{encoded}')
-    
-    # 创建HTML
-    html_content = f"""
-    <div id="pendulum-carousel" style="width:100%; max-width:500px; margin:0 auto;">
-        <img id="animation-frame" src="{encoded_images[0]}" style="width:100%;">
-        <div style="text-align:center; margin-top:10px;">
-            <button onclick="playAnimation()" style="padding:5px 10px;">▶ 播放/暂停</button>
-            <button onclick="resetAnimation()" style="padding:5px 10px;">⟳ 重置</button>
-            <span id="frame-counter" style="margin-left:10px;">帧: 1/{len(encoded_images)}</span>
-        </div>
-    </div>
-
-    <script>
-        // 储存所有图像
-        const frames = {encoded_images};
-        let currentFrame = 0;
-        let animationInterval;
-        let isPlaying = false;
-        
-        // 播放/暂停动画
-        function playAnimation() {{
-            if (isPlaying) {{
-                clearInterval(animationInterval);
-                isPlaying = false;
-            }} else {{
-                animationInterval = setInterval(() => {{
-                    currentFrame = (currentFrame + 1) % frames.length;
-                    document.getElementById('animation-frame').src = frames[currentFrame];
-                    document.getElementById('frame-counter').textContent = `帧: ${{currentFrame + 1}}/${{frames.length}}`;
-                }}, {delay});
-                isPlaying = true;
-            }}
-        }}
-        
-        // 重置动画
-        function resetAnimation() {{
-            clearInterval(animationInterval);
-            isPlaying = false;
-            currentFrame = 0;
-            document.getElementById('animation-frame').src = frames[currentFrame];
-            document.getElementById('frame-counter').textContent = `帧: ${{currentFrame + 1}}/${{frames.length}}`;
-        }}
-    </script>
-    """
-    
-    return html_content
+    return fig
 
 # 修改PendulumSimulation类的visualize方法中的中文标签（在实际运行时进行替换）
 def modify_pendulum_visualization(pendulum):
@@ -270,10 +175,10 @@ def modify_analyzer_visualization(analyzer):
     analyzer.visualize_comparison = new_visualize_comparison
     return analyzer
 
-if app_mode == "单摆基本模拟":
-    st.header("单摆基本模拟")
-    
-    # 创建单摆实例
+# 使用"缓存运行"以保存模拟结果，避免重复计算
+@st.cache_data
+def run_simulation(length, mass, gravity, damping, initial_angle_rad, t_end):
+    """运行单摆模拟并返回结果（带缓存）"""
     pendulum = PendulumSimulation(
         length=length, 
         mass=mass, 
@@ -286,14 +191,24 @@ if app_mode == "单摆基本模拟":
     pendulum = modify_pendulum_visualization(pendulum)
     
     # 运行模拟
-    with st.spinner("运行单摆模拟..."):
-        results = pendulum.simulate(t_span=(0, t_end), t_points=500)
+    results = pendulum.simulate(t_span=(0, t_end), t_points=500)
     
     # 计算周期
     periods, avg_period = pendulum.calculate_periods()
     
     # 计算重力加速度
     g_calculated = pendulum.calculate_gravity()
+    
+    return pendulum, results, periods, avg_period, g_calculated
+
+if app_mode == "单摆基本模拟":
+    st.header("单摆基本模拟")
+    
+    # 使用缓存运行模拟
+    with st.spinner("运行单摆模拟..."):
+        pendulum, results, periods, avg_period, g_calculated = run_simulation(
+            length, mass, gravity, damping, initial_angle_rad, t_end
+        )
     
     # 显示关键结果
     col1, col2, col3 = st.columns(3)
@@ -311,60 +226,51 @@ if app_mode == "单摆基本模拟":
     
     with tab1:
         # 动画设置
-        st.info("单摆运动动画。调整左侧参数后点击'生成动画'查看不同条件下的运动。")
+        st.info("单摆运动动画。实时显示单摆运动情况。")
         
-        col_left, col_right = st.columns([2, 1])
-        with col_right:
-            # 动画控制选项
-            animation_frames = st.slider("动画帧数", 20, 60, 30, 5)
-            animation_speed = st.slider("动画速度", 1, 10, 5, 1)
-            generate_button = st.button("生成动画", use_container_width=True)
-            
-            # 添加一些动画说明
-            st.markdown("""
-            **动画说明：**
-            - 红色实线：单摆轨迹
-            - 浅红色线：完整运动路径
-            - 帧数越高，动画越丝滑
-            - 速度调整动画播放速率
-            """)
+        # 动画控制
+        st.write("**动画控制**")
+        col1, col2, col3 = st.columns([1, 1, 1])
         
-        with col_left:
-            # 创建动画容器
-            animation_container = st.empty()
+        with col1:
+            play_animation = st.button("播放动画", use_container_width=True)
+        with col2:
+            frame_speed = st.slider("播放速度", 1, 10, 5, 1)
+        with col3:
+            num_frames = st.slider("帧数", 20, 100, 50, 10)
+        
+        # 动画显示区域
+        animation_container = st.empty()
+        status_container = st.empty()
+        
+        # 当用户点击播放按钮时，运行动画
+        if play_animation:
+            # 计算帧索引
+            frame_indices = np.linspace(0, len(results["time"]) - 1, num_frames).astype(int)
             
-            # 生成并显示动画
-            if generate_button or 'animation_html' not in st.session_state:
-                with st.spinner("正在生成动画..."):
-                    try:
-                        # 生成动画图像序列
-                        frames = create_pendulum_animation_sequence(
-                            pendulum,
-                            num_frames=animation_frames
-                        )
-                        
-                        # 根据速度设置帧延迟(ms)
-                        frame_delay = 100 / animation_speed
-                        
-                        # 转换为HTML轮播
-                        carousel_html = create_image_carousel_html(frames, delay=frame_delay)
-                        st.session_state['animation_html'] = carousel_html
-                        st.session_state['param_key'] = f"{length}_{mass}_{gravity}_{damping}_{initial_angle}_{t_end}"
-                        
-                        # 显示动画
-                        animation_container.markdown(carousel_html, unsafe_allow_html=True)
-                        st.success("动画生成成功！点击播放按钮开始动画。")
-                    except Exception as e:
-                        st.error(f"生成动画时出错: {e}")
-                        animation_container.error("无法生成动画，请尝试调整参数后重试。")
-            else:
-                # 检查参数是否更改
-                current_params = f"{length}_{mass}_{gravity}_{damping}_{initial_angle}_{t_end}"
-                if 'param_key' not in st.session_state or st.session_state['param_key'] != current_params:
-                    animation_container.info("参数已更改，点击'生成动画'按钮查看新的动画")
-                else:
-                    # 显示之前生成的动画
-                    animation_container.markdown(st.session_state['animation_html'], unsafe_allow_html=True)
+            # 播放动画
+            for i, idx in enumerate(frame_indices):
+                # 显示进度
+                progress = (i + 1) / len(frame_indices)
+                status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
+                
+                # 创建帧
+                fig = create_pendulum_frame(pendulum, idx)
+                animation_container.pyplot(fig)
+                plt.close(fig)  # 关闭图表以释放内存
+                
+                # 控制帧速率
+                delay = 0.2 / frame_speed  # 基本延迟200ms，除以速度
+                time.sleep(delay)
+            
+            # 动画完成
+            status_container.success("动画播放完成！点击'播放动画'按钮重新播放。")
+        else:
+            # 初始帧
+            fig = create_pendulum_frame(pendulum, 0)
+            animation_container.pyplot(fig)
+            plt.close(fig)
+            status_container.info("点击'播放动画'按钮开始播放。")
     
     with tab2:
         # 生成可视化
