@@ -215,8 +215,12 @@ class DataAnalyzer:
             pendulum = pendulum_class(length=length, mass=mass, gravity=gravity, 
                                      damping=damping, initial_angle=initial_angle)
             
+            # 计算duration和time_step
+            duration = t_span[1] - t_span[0]
+            time_step = duration / t_points
+            
             # Run simulation
-            pendulum.simulate(t_span=t_span, t_points=t_points)
+            pendulum.simulate(duration=duration, time_step=time_step)
             
             # Calculate period
             _, period = pendulum.calculate_periods()
