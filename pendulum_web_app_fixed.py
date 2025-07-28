@@ -696,7 +696,7 @@ if app_mode == "基础单摆模拟":
                     """)
                 
                 # 添加瞬时力学分析可视化
-                with st.expander("Instantaneous Mechanical Analysis", expanded=True):
+                with st.expander("瞬时力学分析", expanded=True):
                     # 创建当前时刻的力学分析图
                     force_fig = plt.figure(figsize=(10, 6))
                     
@@ -706,14 +706,14 @@ if app_mode == "基础单摆模拟":
                     ax1.plot(angle_data, angular_velocity, 'b-', alpha=0.3)
                     # 标记当前点
                     ax1.plot(angle_data[closest_idx], angular_velocity[closest_idx], 'ro')
-                    ax1.set_xlabel('Angle (rad)')
-                    ax1.set_ylabel('Angular Velocity (rad/s)')
-                    ax1.set_title('Phase Space')
+                    ax1.set_xlabel('角度 (rad)')
+                    ax1.set_ylabel('角速度 (rad/s)')
+                    ax1.set_title('相空间图')
                     ax1.grid(True)
                     
                     # 2. 能量条形图
                     ax2 = force_fig.add_subplot(1, 2, 2)
-                    energy_types = ['Kinetic Energy', 'Potential Energy', 'Total Energy']
+                    energy_types = ['动能', '势能', '总能量']
                     energy_values = [kinetic_energy[closest_idx], 
                                     potential_energy[closest_idx], 
                                     total_energy[closest_idx]]
@@ -727,12 +727,12 @@ if app_mode == "基础单摆模拟":
                         ax2.text(bar.get_x() + bar.get_width()/2., height + 0.001,
                                f'{height:.4f}J', ha='center', va='bottom', fontsize=9)
                     
-                    ax2.set_ylabel('Energy (J)')
-                    ax2.set_title(f'Energy Distribution (t={time_data[closest_idx]:.2f}s)')
+                    ax2.set_ylabel('能量 (J)')
+                    ax2.set_title(f'能量分布 (t={time_data[closest_idx]:.2f}s)')
                     
                     # 添加初始能量水平线作为参考
                     ax2.axhline(y=total_energy[0], color='black', linestyle='--', 
-                               alpha=0.7, label='Initial Energy')
+                               alpha=0.7, label='初始能量')
                     ax2.legend()
                     
                     force_fig.tight_layout()
@@ -740,22 +740,22 @@ if app_mode == "基础单摆模拟":
                     plt.close(force_fig)
         else:
             # 原始的帧序列动画
-            st.write("**Animation Controls**")
+            st.write("**动画控制**")
             col1, col2, col3 = st.columns([1, 1, 1])
             
             with col1:
-                play_animation = st.button("Play Animation", use_container_width=True)
+                play_animation = st.button("播放动画", use_container_width=True)
             with col2:
-                frame_speed = st.slider("Playback Speed", 1, 10, 5, 1)
+                frame_speed = st.slider("播放速度", 1, 10, 5, 1)
             with col3:
-                num_frames = st.slider("Number of Frames", 20, 100, 50, 10)
+                num_frames = st.slider("帧数", 20, 100, 50, 10)
             
             # 动画显示区域
             animation_container = st.empty()
             status_container = st.empty()
             
             # 添加实时数据显示容器
-            st.subheader("Real-time Physical Data")
+            st.subheader("实时物理数据")
             data_col1 = st.empty()
             data_col2 = st.empty()
             data_col3 = st.empty()
@@ -772,7 +772,7 @@ if app_mode == "基础单摆模拟":
                 for i, idx in enumerate(frame_indices):
                     # 显示进度
                     progress = (i + 1) / len(frame_indices)
-                    status_container.progress(progress, f"Playing... {i+1}/{len(frame_indices)}")
+                    status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
                     
                     # 创建帧
                     fig = create_pendulum_frame(
@@ -784,12 +784,12 @@ if app_mode == "基础单摆模拟":
                     # 更新实时数据显示
                     with data_cols[0]:
                         data_col1.markdown(f"""
-                        ### Kinematic Data
-                        - **Time**: {time_data[idx]:.3f} s
-                        - **Angle**: {angle_data[idx]:.4f} rad ({np.rad2deg(angle_data[idx]):.1f}°)
-                        - **Angular Velocity**: {angular_velocity[idx]:.4f} rad/s
-                        - **X Position**: {x_position[idx]:.4f} m
-                        - **Y Position**: {y_position[idx]:.4f} m
+                        ### 运动学数据
+                        - **时间**: {time_data[idx]:.3f} s
+                        - **角度**: {angle_data[idx]:.4f} rad ({np.rad2deg(angle_data[idx]):.1f}°)
+                        - **角速度**: {angular_velocity[idx]:.4f} rad/s
+                        - **X位置**: {x_position[idx]:.4f} m
+                        - **Y位置**: {y_position[idx]:.4f} m
                         """)
                     
                     with data_cols[1]:
@@ -804,12 +804,12 @@ if app_mode == "基础单摆模拟":
                         a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
                         
                         data_col2.markdown(f"""
-                        ### Dynamic Data
-                        - **Speed Magnitude**: {v_mag:.4f} m/s
-                        - **Tangential Acceleration**: {a_tan:.4f} m/s²
-                        - **Normal Acceleration**: {a_n:.4f} m/s²
-                        - **Total Acceleration**: {a_mag:.4f} m/s²
-                        - **Restoring Force**: {mass * gravity * np.sin(angle_data[idx]):.4f} N
+                        ### 动力学数据
+                        - **速度大小**: {v_mag:.4f} m/s
+                        - **切向加速度**: {a_tan:.4f} m/s²
+                        - **法向加速度**: {a_n:.4f} m/s²
+                        - **总加速度**: {a_mag:.4f} m/s²
+                        - **恢复力**: {mass * gravity * np.sin(angle_data[idx]):.4f} N
                         """)
                     
                     with data_cols[2]:
@@ -817,12 +817,12 @@ if app_mode == "基础单摆模拟":
                         energy_loss = (1 - total_energy[idx]/total_energy[0]) * 100
                         
                         data_col3.markdown(f"""
-                        ### Energy Data
-                        - **Kinetic Energy**: {kinetic_energy[idx]:.6f} J
-                        - **Potential Energy**: {potential_energy[idx]:.6f} J
-                        - **Total Energy**: {total_energy[idx]:.6f} J
-                        - **Energy Loss**: {energy_loss:.2f}%
-                        - **Power Loss**: {damping * (angular_velocity[idx]**2):.6f} W
+                        ### 能量数据
+                        - **动能**: {kinetic_energy[idx]:.6f} J
+                        - **势能**: {potential_energy[idx]:.6f} J
+                        - **总能量**: {total_energy[idx]:.6f} J
+                        - **能量损失**: {energy_loss:.2f}%
+                        - **功率损失**: {damping * (angular_velocity[idx]**2):.6f} W
                         """)
                     
                     # 控制帧速率
@@ -843,12 +843,12 @@ if app_mode == "基础单摆模拟":
                 # 显示初始状态数据
                 with data_cols[0]:
                     data_col1.markdown(f"""
-                    ### Initial Kinematic Data
-                    - **Time**: {time_data[0]:.3f} s
-                    - **Angle**: {angle_data[0]:.4f} rad ({np.rad2deg(angle_data[0]):.1f}°)
-                    - **Angular Velocity**: {angular_velocity[0]:.4f} rad/s
-                    - **X Position**: {x_position[0]:.4f} m
-                    - **Y Position**: {y_position[0]:.4f} m
+                    ### 初始运动学数据
+                    - **时间**: {time_data[0]:.3f} s
+                    - **角度**: {angle_data[0]:.4f} rad ({np.rad2deg(angle_data[0]):.1f}°)
+                    - **角速度**: {angular_velocity[0]:.4f} rad/s
+                    - **X位置**: {x_position[0]:.4f} m
+                    - **Y位置**: {y_position[0]:.4f} m
                     """)
                 
                 with data_cols[1]:
@@ -863,32 +863,32 @@ if app_mode == "基础单摆模拟":
                     a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
                     
                     data_col2.markdown(f"""
-                    ### Initial Dynamic Data
-                    - **Speed Magnitude**: {v_mag:.4f} m/s
-                    - **Tangential Acceleration**: {a_tan:.4f} m/s²
-                    - **Normal Acceleration**: {a_n:.4f} m/s²
-                    - **Total Acceleration**: {a_mag:.4f} m/s²
-                    - **Restoring Force**: {mass * gravity * np.sin(angle_data[0]):.4f} N
+                    ### 初始动力学数据
+                    - **速度大小**: {v_mag:.4f} m/s
+                    - **切向加速度**: {a_tan:.4f} m/s²
+                    - **法向加速度**: {a_n:.4f} m/s²
+                    - **总加速度**: {a_mag:.4f} m/s²
+                    - **恢复力**: {mass * gravity * np.sin(angle_data[0]):.4f} N
                     """)
                 
                 with data_cols[2]:
                     data_col3.markdown(f"""
-                    ### Initial Energy Data
-                    - **Kinetic Energy**: {kinetic_energy[0]:.6f} J
-                    - **Potential Energy**: {potential_energy[0]:.6f} J
-                    - **Total Energy**: {total_energy[0]:.6f} J
-                    - **Energy Loss**: 0.00%
-                    - **Power Loss**: {damping * (angular_velocity[0]**2):.6f} W
+                    ### 初始能量数据
+                    - **动能**: {kinetic_energy[0]:.6f} J
+                    - **势能**: {potential_energy[0]:.6f} J
+                    - **总能量**: {total_energy[0]:.6f} J
+                    - **能量损失**: 0.00%
+                    - **功率损失**: {damping * (angular_velocity[0]**2):.6f} W
                     """)
                 
                 # 添加理论数据对比图表
-                st.subheader("Theoretical vs Measured Period Comparison")
+                st.subheader("理论与测量周期对比")
                 theory_period = 2 * np.pi * np.sqrt(length / gravity)
                 angle_correction = 1 + np.sin(initial_angle_rad/2)**2 / 16
                 corrected_period = theory_period * angle_correction
                 
                 data = {
-                    'Type': ['Small Angle Period', 'Large Angle Corrected Period', 'Measured Average Period'],
+                    'Type': ['小角度周期', '大角度修正周期', '测量平均周期'],
                     'Period Value (s)': [theory_period, corrected_period, avg_period]
                 }
                 
@@ -902,8 +902,8 @@ if app_mode == "基础单摆模拟":
                     ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                            f'{height:.6f}s', ha='center', va='bottom')
                 
-                ax.set_ylabel('Period (seconds)')
-                ax.set_title('Period Comparison')
+                ax.set_ylabel('周期 (秒)')
+                ax.set_title('周期对比')
                 chart.tight_layout()
                 
                 st.pyplot(chart)
