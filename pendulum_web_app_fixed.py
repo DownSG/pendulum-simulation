@@ -503,24 +503,30 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
     )
     
     # 运行模拟
-    results = pendulum.simulate(duration=t_end, time_step=t_end/500)
+    times, angles, angular_velocities, control_torques = pendulum.simulate(duration=t_end, time_step=t_end/500)
+    
+    # 计算位置
+    x_position, y_position = pendulum.get_position(angles)
+    
+    # 计算能量
+    kinetic_energy, potential_energy, total_energy = pendulum.calculate_energy(angles, angular_velocities)
     
     # 计算周期
-    periods, avg_period = pendulum.calculate_periods()
+    periods, avg_period = pendulum.calculate_periods(angles, times)
     
     # 计算重力加速度
     g_calculated = pendulum.calculate_gravity()
     
     # 只返回可序列化的数据，不返回pendulum对象
     return {
-        "time": results["time"].tolist(),  # 转换numpy数组为列表以便序列化
-        "angle": results["angle"].tolist(),
-        "angular_velocity": results["angular_velocity"].tolist(),
-        "x_position": results["x_position"].tolist(),
-        "y_position": results["y_position"].tolist(),
-        "kinetic_energy": results["kinetic_energy"].tolist(),  # 添加动能数据
-        "potential_energy": results["potential_energy"].tolist(),  # 添加势能数据
-        "total_energy": results["total_energy"].tolist(),
+        "time": times.tolist(),  # 转换numpy数组为列表以便序列化
+        "angle": angles.tolist(),
+        "angular_velocity": angular_velocities.tolist(),
+        "x_position": x_position.tolist(),
+        "y_position": y_position.tolist(),
+        "kinetic_energy": kinetic_energy.tolist(),
+        "potential_energy": potential_energy.tolist(),
+        "total_energy": total_energy.tolist(),
         "periods": periods,
         "avg_period": avg_period,
         "g_calculated": g_calculated
