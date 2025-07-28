@@ -1,338 +1,628 @@
+"""
+pendulum_simulation.py
+----------------------
+本模块为单摆实验的本地端核心仿真与AI分析平台。
+支持批量仿真、g值自动测量、阻尼分析、误差分析、敏感性分析等科研级实验物理数据处理。
+所有功能均可在命令行、Jupyter Notebook等环境下直接调用，便于教学、科研和AI集成。
+"""
 import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import pandas as pd # Added for run_full_experiment
+
+# 添加中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 class PendulumSimulation:
     """
-    单摆运动的精确模拟类
-    包含考虑空气阻力的非线性单摆模型
+    Single Pendulum Simulation Class
+    Contains non-linear pendulum model with air resistance
+    Supports optional PID angle control
     """
-    def __init__(self, length=1.0, mass=0.1, gravity=9.8, damping=0.1, initial_angle=np.pi/6):
+    def __init__(self, length=1.0, mass=0.1, gravity=9.8, damping=0.1, initial_angle=np.pi/6,
+                 use_pid=False, pid_kp=1000, pid_kd=500, target_angle=np.pi/4):
         """
-        初始化单摆模拟器
+        Initialize pendulum simulator
         
-        参数:
-        length: 摆长(米)
-        mass: 摆球质量(kg)
-        gravity: 重力加速度(m/s^2)
-        damping: 阻尼系数，表示阻尼力与速度的比例系数
-        initial_angle: 初始角度(弧度)
+        Parameters:
+        length: pendulum length (m)
+        mass: bob mass (kg)
+        gravity: gravitational acceleration (m/s^2)
+        damping: damping coefficient, proportional to velocity
+        initial_angle: initial angle (rad)
+        use_pid: whether to enable PID angle control
+        pid_kp: PID proportional gain
+        pid_kd: PID derivative gain
+        target_angle: desired angle setpoint for PID controller
         """
+        # Pendulum physical parameters
         self.length = length
         self.mass = mass
         self.gravity = gravity
         self.damping = damping
-        self.initial_angle = initial_angle
-        self.simulation_results = None
         
-    def pendulum_ode(self, t, y):
+        # Initial state [angle, angular velocity]
+        self.initial_state = [initial_angle, 0.0]  
+        
+        # PID controller parameters
+        self.use_pid = use_pid
+        self.pid_kp = pid_kp
+        self.pid_kd = pid_kd
+        self.target_angle = target_angle
+
+        # Simulation results storage
+        self.times = None
+        self.angles = None
+        self.angular_velocities = None
+        self.control_torques = None
+        
+    def equations_of_motion(self, t, y):
         """
-        单摆运动的微分方程：
-        d²θ/dt² + (b/mL²)·dθ/dt + (g/L)·sinθ = 0
+        Pendulum equations of motion
         
-        y[0]: 角度 theta
-        y[1]: 角速度 omega = dθ/dt
+        Parameters:
+        t: time variable (required by solver)
+        y: state vector [angle, angular_velocity]
         
-        返回:
-        dydt: [dθ/dt, d²θ/dt²]
+        Returns:
+        dy/dt: state derivative [angular_velocity, angular_acceleration]
         """
-        theta, omega = y
+        angle, angular_velocity = y
         
-        # 考虑空气阻力的非线性单摆方程
-        # 正确的阻尼项应为: (damping/m)·L·dθ/dt
-        # 因为阻尼力矩 = b·L·ω
-        dydt = [
-            omega,
-            -self.gravity / self.length * np.sin(theta) - self.damping / self.mass * omega
-        ]
-        return dydt
-    
-    def simulate(self, t_span=(0, 10), t_points=1000):
+        # Nonlinear pendulum equation with damping
+        angular_acceleration = (-self.gravity / self.length * np.sin(angle) 
+                              - self.damping * angular_velocity / self.mass)
+        
+        # Add control torque if PID is enabled
+        if self.use_pid:
+            # PID control (P and D terms only)
+            angle_error = self.target_angle - angle
+            control_torque = self.pid_kp * angle_error - self.pid_kd * angular_velocity
+            angular_acceleration += control_torque / (self.mass * self.length**2)
+            
+        return [angular_velocity, angular_acceleration]
+
+    def simulate(self, duration=10.0, time_step=0.01):
         """
-        模拟单摆运动
+        Run pendulum simulation
         
-        参数:
-        t_span: 时间范围(开始时间, 结束时间)
-        t_points: 时间点数量
+        Parameters:
+        duration: simulation duration (seconds)
+        time_step: time step for result sampling (seconds)
         
-        返回:
-        模拟结果字典
+        Returns:
+        times: array of time points
+        angles: array of pendulum angles
+        angular_velocities: array of angular velocities
+        control_torques: array of control torques (if PID is enabled)
         """
-        t_eval = np.linspace(t_span[0], t_span[1], t_points)
-        initial_state = [self.initial_angle, 0.0]  # 初始角度和初始角速度
+        # Time points for simulation
+        t_eval = np.arange(0, duration, time_step)
         
-        # 使用高精度积分器求解微分方程
+        # Solve ODE
         solution = solve_ivp(
-            self.pendulum_ode,
-            t_span,
-            initial_state,
+            self.equations_of_motion,
+            [0, duration],
+            self.initial_state,
             method='RK45',
-            t_eval=t_eval,
-            rtol=1e-10,  # 提高积分精度
-            atol=1e-10   # 提高积分精度
+            t_eval=t_eval
         )
         
-        # 提取结果
-        times = solution.t
-        angles = solution.y[0]
-        angular_velocities = solution.y[1]
+        # Extract results
+        self.times = solution.t
+        self.angles = solution.y[0]
+        self.angular_velocities = solution.y[1]
         
-        # 计算位置坐标 (x向右, y向下为正)
+        # Calculate control torques if PID is enabled
+        if self.use_pid:
+            self.control_torques = np.zeros_like(self.times)
+            for i in range(len(self.times)):
+                angle_error = self.target_angle - self.angles[i]
+                self.control_torques[i] = (self.pid_kp * angle_error - 
+                                          self.pid_kd * self.angular_velocities[i])
+        
+        return self.times, self.angles, self.angular_velocities, self.control_torques
+    
+    def get_position(self, angles=None):
+        """
+        Calculate pendulum bob position from angles
+        
+        Parameters:
+        angles: array of pendulum angles (if None, use stored angles)
+        
+        Returns:
+        x_positions: array of x-coordinates
+        y_positions: array of y-coordinates
+        """
+        if angles is None:
+            if self.angles is None:
+                raise ValueError("No angles available. Run simulate() first.")
+            angles = self.angles
+            
         x_positions = self.length * np.sin(angles)
         y_positions = -self.length * np.cos(angles)
         
-        # 计算速度
-        vx = self.length * angular_velocities * np.cos(angles)
-        vy = self.length * angular_velocities * np.sin(angles)
+        return x_positions, y_positions
+    
+    def calculate_energy(self, angles=None, angular_velocities=None):
+        """
+        Calculate pendulum energy (kinetic and potential)
         
-        # 计算总能量
-        # 动能 K = 1/2·m·L²·ω²
-        kinetic_energy = 0.5 * self.mass * (self.length * angular_velocities)**2
+        Parameters:
+        angles: array of pendulum angles (if None, use stored angles)
+        angular_velocities: array of angular velocities (if None, use stored velocities)
         
-        # 势能 U = m·g·h = m·g·L·(1-cosθ)
-        # 零势能点为摆长垂直向下的位置
-        potential_energy = self.mass * self.gravity * self.length * (1 - np.cos(angles))
+        Returns:
+        kinetic_energy: array of kinetic energies
+        potential_energy: array of potential energies
+        total_energy: array of total energies
+        """
+        if angles is None or angular_velocities is None:
+            if self.angles is None or self.angular_velocities is None:
+                raise ValueError("No simulation data available. Run simulate() first.")
+            angles = self.angles
+            angular_velocities = self.angular_velocities
+            
+        # Calculate bob velocity components
+        x_velocities = self.length * np.cos(angles) * angular_velocities
+        y_velocities = self.length * np.sin(angles) * angular_velocities
         
-        # 总能量
+        # Calculate velocities, potential and kinetic energy
+        velocities = np.sqrt(x_velocities**2 + y_velocities**2)
+        kinetic_energy = 0.5 * self.mass * velocities**2
+        
+        # Get heights (y_position + length to set zero at lowest point)
+        _, y_positions = self.get_position(angles)
+        heights = y_positions + self.length
+        
+        potential_energy = self.mass * self.gravity * heights
         total_energy = kinetic_energy + potential_energy
         
-        # 存储结果
-        self.simulation_results = {
-            'time': times,
-            'angle': angles,
-            'angular_velocity': angular_velocities,
-            'x_position': x_positions,
-            'y_position': y_positions,
-            'velocity_x': vx,
-            'velocity_y': vy,
-            'kinetic_energy': kinetic_energy,
-            'potential_energy': potential_energy,
-            'total_energy': total_energy
-        }
-        
-        return self.simulation_results
+        return kinetic_energy, potential_energy, total_energy
     
-    def calculate_periods(self):
+    def visualize(self, show_path=True):
         """
-        计算单摆的周期
-        通过寻找角位移的峰值来精确计算
+        Visualize simulation results
         
-        返回:
-        periods: 周期列表
-        average_period: 平均周期
+        Parameters:
+        show_path: whether to show pendulum path
         """
-        if self.simulation_results is None:
-            raise ValueError("请先运行模拟!")
-            
-        angles = self.simulation_results['angle']
-        times = self.simulation_results['time']
+        if self.times is None or self.angles is None:
+            raise ValueError("No simulation data available. Run simulate() first.")
         
-        # 寻找角度的峰值（极大值）
-        peaks = []
-        for i in range(1, len(angles)-1):
-            if angles[i] > angles[i-1] and angles[i] > angles[i+1]:
-                # 二次插值找到精确峰值时间
-                t0, t1, t2 = times[i-1], times[i], times[i+1]
-                y0, y1, y2 = angles[i-1], angles[i], angles[i+1]
-                
-                # 拟合二次函数 y = a*t^2 + b*t + c 的顶点
-                denom = (t0 - t1) * (t0 - t2) * (t1 - t2)
-                a = (t0 * (y1 - y2) + t1 * (y2 - y0) + t2 * (y0 - y1)) / denom
-                b = (t0*t0 * (y1 - y2) + t1*t1 * (y2 - y0) + t2*t2 * (y0 - y1)) / denom
-                
-                # 顶点时间: t = -b/(2a)
-                if a != 0:
-                    peak_time = -b / (2*a)
-                    # 只添加在时间范围内的峰值
-                    if t0 <= peak_time <= t2:
-                        peaks.append(peak_time)
-                else:
-                    peaks.append(t1)
+        # Create figure with 4 subplots
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))
         
-        # 计算周期 (相邻峰值间的时间间隔)
-        periods = []
-        for i in range(len(peaks) - 1):
-            period = peaks[i+1] - peaks[i]
-            # 过滤掉明显不合理的周期值
-            if 0.1 < period < 10:  # 根据物理情况设置合理范围
-                periods.append(period)
-            
-        if len(periods) == 0:
-            # 如果找不到完整周期，使用小角近似计算
-            small_angle_period = 2 * np.pi * np.sqrt(self.length / self.gravity)
-            return [small_angle_period], small_angle_period
-            
-        average_period = np.mean(periods)
-        return periods, average_period
-    
-    def calculate_gravity(self):
-        """
-        根据测量的周期计算重力加速度
-        使用公式: g = 4π²L/T²
-        
-        对于大角度，使用修正公式:
-        g = 4π²L/T² · (1 - sin²(θ₀/2)/16 - ...)^(-2)
-        
-        返回:
-        g: 计算得到的重力加速度
-        """
-        _, avg_period = self.calculate_periods()
-        
-        # 根据单摆周期公式计算重力加速度
-        g_uncorrected = 4 * np.pi**2 * self.length / (avg_period**2)
-        
-        # 大角度修正（考虑第一项非线性修正）
-        if abs(self.initial_angle) > 0.1:  # 约5.7度
-            correction = (1 - np.sin(self.initial_angle/2)**2 / 16)**(-2)
-            g_corrected = g_uncorrected * correction
-            return g_corrected
-        
-        return g_uncorrected
-        
-    def visualize(self):
-        """
-        可视化单摆运动
-        """
-        if self.simulation_results is None:
-            raise ValueError("请先运行模拟!")
-        
-        # 创建图表
-        fig = plt.figure(figsize=(15, 10))
-        grid = plt.GridSpec(3, 2, figure=fig)
-        
-        # 1. 角度-时间图
-        ax1 = fig.add_subplot(grid[0, 0])
-        ax1.plot(self.simulation_results['time'], self.simulation_results['angle'], 'b-')
+        # Angle vs Time plot
+        ax1.plot(self.times, self.angles)
         ax1.set_xlabel('时间 (s)')
         ax1.set_ylabel('角度 (rad)')
         ax1.set_title('角度随时间变化')
         ax1.grid(True)
         
-        # 2. 位置轨迹图
-        ax2 = fig.add_subplot(grid[0, 1])
-        ax2.plot(self.simulation_results['x_position'], self.simulation_results['y_position'], 'r-')
+        # Calculate x, y positions
+        x_positions, y_positions = self.get_position()
+        
+        # Pendulum path plot
+        ax2.plot(x_positions, y_positions, 'b-')
+        if show_path:
+            ax2.plot([0, x_positions[-1]], [0, y_positions[-1]], 'r--')
         ax2.set_xlabel('X位置 (m)')
         ax2.set_ylabel('Y位置 (m)')
         ax2.set_title('单摆轨迹')
         ax2.grid(True)
-        ax2.axis('equal')  # 保持坐标轴比例一致
+        ax2.axis('equal')
         
-        # 3. 相空间图 (角度-角速度)
-        ax3 = fig.add_subplot(grid[1, 0])
-        ax3.plot(self.simulation_results['angle'], self.simulation_results['angular_velocity'], 'g-')
+        # Phase space plot (angle vs angular velocity)
+        ax3.plot(self.angles, self.angular_velocities)
         ax3.set_xlabel('角度 (rad)')
         ax3.set_ylabel('角速度 (rad/s)')
         ax3.set_title('相空间轨迹')
         ax3.grid(True)
         
-        # 4. 能量图
-        ax4 = fig.add_subplot(grid[1, 1])
-        ax4.plot(self.simulation_results['time'], self.simulation_results['kinetic_energy'], 'b-', label='动能')
-        ax4.plot(self.simulation_results['time'], self.simulation_results['potential_energy'], 'r-', label='势能')
-        ax4.plot(self.simulation_results['time'], self.simulation_results['total_energy'], 'g-', label='总能量')
+        # Energy plot
+        kinetic_energy, potential_energy, total_energy = self.calculate_energy()
+        ax4.plot(self.times, kinetic_energy, 'r-', label='动能')
+        ax4.plot(self.times, potential_energy, 'g-', label='势能')
+        ax4.plot(self.times, total_energy, 'b-', label='总能量')
         ax4.set_xlabel('时间 (s)')
         ax4.set_ylabel('能量 (J)')
         ax4.set_title('能量随时间变化')
         ax4.legend()
         ax4.grid(True)
         
-        # 5. 摆长与周期关系
-        ax5 = fig.add_subplot(grid[2, 0])
-        lengths = np.linspace(0.1, 2.0, 20)
-        periods = [2 * np.pi * np.sqrt(l / self.gravity) for l in lengths]
-        ax5.plot(lengths, periods, 'bo-')
-        ax5.scatter([self.length], [2 * np.pi * np.sqrt(self.length / self.gravity)], 
-                   color='red', s=100, marker='*', label='当前设置')
-        ax5.set_xlabel('摆长 (m)')
-        ax5.set_ylabel('周期 (s)')
-        ax5.set_title('摆长与周期关系')
-        ax5.legend()
-        ax5.grid(True)
-        
-        # 6. 周期与摆长平方关系 (用于计算g)
-        ax6 = fig.add_subplot(grid[2, 1])
-        lengths_squared = lengths**2
-        periods_array = np.array(periods)  # 转换为numpy数组以支持平方操作
-        ax6.plot(lengths, periods_array**2, 'mo-')
-        ax6.set_xlabel('摆长 (m)')
-        ax6.set_ylabel('周期平方 (s²)')
-        ax6.set_title('验证 T² ∝ L 关系')
-        ax6.grid(True)
-        
         plt.tight_layout()
-        return fig
-    
-    def animate_pendulum(self, interval=50):
-        """
-        创建单摆运动的动画
+        plt.show()
         
-        参数:
-        interval: 帧间隔(毫秒)
+    def animate_pendulum(self, interval=50, save_animation=False, filename='pendulum_animation.gif'):
         """
-        if self.simulation_results is None:
-            raise ValueError("请先运行模拟!")
+        Create pendulum animation
+        
+        Parameters:
+        interval: time between animation frames (ms)
+        save_animation: whether to save animation to file
+        filename: output file name if saving animation
+        """
+        if self.times is None or self.angles is None:
+            raise ValueError("No simulation data available. Run simulate() first.")
             
-        try:
-            from matplotlib.animation import FuncAnimation
-            import matplotlib.pyplot as plt
-            from IPython.display import HTML
-        except ImportError:
-            print("请安装所需库: matplotlib")
-            return None
+        import matplotlib.animation as animation
+        from matplotlib.patches import Circle
         
+        # Calculate bob positions
+        x_positions, y_positions = self.get_position()
+        
+        # Create figure
         fig, ax = plt.subplots(figsize=(8, 8))
-        ax.set_xlim(-1.5*self.length, 1.5*self.length)
-        ax.set_ylim(-1.5*self.length, 0.5*self.length)
+        
+        # Set limits with some padding
+        max_range = self.length * 1.2
+        ax.set_xlim(-max_range, max_range)
+        ax.set_ylim(-max_range, max_range)
+        ax.set_xlabel('X位置 (m)')
+        ax.set_ylabel('Y位置 (m)')
+        ax.set_title('单摆动画')
         ax.grid(True)
         
-        # 绘制摆点和摆球
-        pivot, = ax.plot([0], [0], 'ko', markersize=8)
-        line, = ax.plot([], [], 'k-', linewidth=2)
-        bob, = ax.plot([], [], 'ro', markersize=10)
+        # Create pendulum rod line
+        line, = ax.plot([], [], 'k-', lw=2)
         
-        # 绘制轨迹
-        trace, = ax.plot([], [], 'r-', alpha=0.3)
-        trace_x = []
-        trace_y = []
+        # Create pendulum bob (circle)
+        bob_radius = self.length * 0.05
+        bob = Circle((0, 0), bob_radius, fc='r', zorder=3)
+        ax.add_patch(bob)
         
-        # 文本信息显示
-        time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-        energy_text = ax.text(0.02, 0.90, '', transform=ax.transAxes)
+        # Add pendulum pivot point
+        ax.plot(0, 0, 'ko', markersize=10)
         
+        # Optional: path trace (empty at first)
+        if save_animation:
+            path, = ax.plot([], [], 'b-', alpha=0.3)
+            path_x = []
+            path_y = []
+        
+        # Initialization function for animation
         def init():
             line.set_data([], [])
-            bob.set_data([], [])
-            trace.set_data([], [])
-            time_text.set_text('')
-            energy_text.set_text('')
-            return line, bob, trace, time_text, energy_text
+            bob.center = (0, 0)
+            if save_animation:
+                path.set_data([], [])
+            return line, bob
         
+        # Animation update function
         def update(i):
-            x = self.simulation_results['x_position'][i]
-            y = self.simulation_results['y_position'][i]
+            x = x_positions[i]
+            y = y_positions[i]
             
             line.set_data([0, x], [0, y])
-            bob.set_data([x], [y])
+            bob.center = (x, y)
             
-            # 更新轨迹
-            trace_x.append(x)
-            trace_y.append(y)
-            trace.set_data(trace_x, trace_y)
-            
-            # 更新文本信息
-            time_text.set_text(f'时间: {self.simulation_results["time"][i]:.2f} s')
-            energy_text.set_text(f'总能量: {self.simulation_results["total_energy"][i]:.4f} J')
-            
-            return line, bob, trace, time_text, energy_text
+            if save_animation:
+                path_x.append(x)
+                path_y.append(y)
+                path.set_data(path_x, path_y)
+                
+            return line, bob
         
-        # 创建动画
-        frames = min(100, len(self.simulation_results['time']))  # 限制帧数以避免过大
-        step = len(self.simulation_results['time']) // frames
-        
-        anim = FuncAnimation(
-            fig, update, frames=range(0, len(self.simulation_results['time']), step),
+        # Create animation
+        ani = animation.FuncAnimation(
+            fig, update, frames=len(self.times),
             init_func=init, blit=True, interval=interval
         )
         
-        plt.close()  # 防止显示静态图形
-        return anim 
+        if save_animation:
+            ani.save(filename, writer='pillow', fps=1000/interval)
+            
+        plt.show()
+    
+    def run_full_experiment(self, lengths=None, duration=10.0, time_step=0.01):
+        """
+        Run a full pendulum experiment with varying lengths
+        Returns period vs. length data
+        
+        Parameters:
+        lengths: array of pendulum lengths to test (m)
+        duration: simulation duration (seconds)
+        time_step: time step for result sampling (seconds)
+        
+        Returns:
+        df: DataFrame with length and period columns
+        """
+        if lengths is None:
+            lengths = np.linspace(0.1, 2.0, 20)
+            
+        results = []
+        
+        for length in lengths:
+            # Update pendulum length
+            self.length = length
+            
+            # Run simulation
+            self.simulate(duration, time_step)
+            
+            # Calculate period (use zero crossings)
+            angles = self.angles
+            times = self.times
+            
+            # Find where the pendulum crosses through equilibrium (sin(angle) = 0)
+            # Using linear interpolation for better accuracy
+            indices = np.where(np.diff(np.signbit(angles)))[0]
+            
+            if len(indices) >= 2:
+                # Calculate average period from zero crossings
+                periods = []
+                for i in range(len(indices) - 2):
+                    # Only use consecutive crossings in the same direction
+                    if (i % 2) == 0:  
+                        period = times[indices[i+2]] - times[indices[i]]
+                        periods.append(period)
+                
+                if periods:
+                    avg_period = np.mean(periods)
+                    results.append({
+                        'length': length,
+                        'period': avg_period,
+                        'period_theoretical': 2 * np.pi * np.sqrt(length / self.gravity)
+                    })
+        
+        # Convert results to DataFrame
+        if results:
+            df = pd.DataFrame(results)
+            return df
+        else:
+            return pd.DataFrame(columns=['length', 'period', 'period_theoretical'])
+
+def run_damping_analysis(
+    length=1.0,
+    gravity=9.8,
+    mass=0.1,
+    damping=0.1,
+    initial_angle=np.pi/6,
+    t_span=(0, 20),
+    t_points=1000,
+    export_csv=None,
+    export_json=None
+):
+    """
+    Simulate damping decay under a single pendulum length, automatically fit damping coefficient, output fitting results and visualization.
+    Parameters:
+        length: float, pendulum length
+        gravity: float, gravitational acceleration
+        mass: float, bob mass
+        damping: float, damping coefficient
+        initial_angle: float, initial angle (rad)
+        t_span: tuple, simulation time range
+        t_points: int, number of simulation time points
+        export_csv: str, optional, export csv file name
+        export_json: str, optional, export json file name
+    Returns:
+        fit_result: dict, damping fitting results
+        fig: matplotlib.figure, result visualization figure
+    """
+    from data_analyzer import DataAnalyzer
+    import json
+    # Simulate
+    pendulum = PendulumSimulation(length=length, mass=mass, gravity=gravity, damping=damping, initial_angle=initial_angle)
+    results = pendulum.simulate(t_span=t_span, t_points=t_points)
+    # Take each peak as amplitude
+    angles = results['angle']
+    times = results['time']
+    peaks = []
+    peak_times = []
+    for i in range(1, len(angles)-1):
+        if angles[i] > angles[i-1] and angles[i] > angles[i+1]:
+            peaks.append(abs(angles[i]))
+            peak_times.append(times[i])
+    peaks = np.array(peaks)
+    peak_times = np.array(peak_times)
+    # Damping analysis
+    analyzer = DataAnalyzer()
+    fit_result = analyzer.analyze_damping(peak_times, peaks)
+    # Optional export csv
+    if export_csv:
+        import pandas as pd
+        df = pd.DataFrame({'time': peak_times, 'amplitude': peaks})
+        df.to_csv(export_csv, index=False)
+        print(f"Damping analysis data exported to {export_csv}")
+    if export_json:
+        with open(export_json, 'w', encoding='utf-8') as f:
+            json.dump(fit_result, f, ensure_ascii=False, indent=2)
+        print(f"Damping analysis results exported to {export_json}")
+    # Visualization
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.plot(peak_times, peaks, 'bo', label='Simulated Peak')
+    # Fitting curve
+    a0 = fit_result['initial_amplitude']
+    gamma = fit_result['damping_coefficient']
+    fit_curve = a0 * np.exp(-gamma * peak_times)
+    ax.plot(peak_times, fit_curve, 'r--', label=f'Fitted: A={a0:.3f}e^(-{gamma:.3f}t)')
+    ax.set_xlabel('时间 (s)')
+    ax.set_ylabel('振幅 (rad)')
+    ax.set_title('单摆阻尼衰减拟合')
+    ax.legend()
+    ax.grid(True)
+    plt.tight_layout()
+    print(f"Auto-fitted damping coefficient: gamma = {gamma:.6f} ± {fit_result['damping_uncertainty']:.6f}")
+    return fit_result, fig
+
+def run_error_analysis_and_comparison(
+    experimental_data,
+    theoretical_data,
+    export_csv=None,
+    export_json=None
+):
+    """
+    Input experimental data and theoretical data, automatically calculate error metrics and generate comparison visualization.
+    Parameters:
+        experimental_data: dict, experimental data (needs time, angle, y_position, angular_velocity)
+        theoretical_data: dict, theoretical data (same as above)
+        export_csv: str, optional, export csv file name
+        export_json: str, optional, export json file name
+    Returns:
+        error_metrics: dict, error metrics
+        fig: matplotlib.figure, comparison visualization figure
+    """
+    from data_analyzer import DataAnalyzer
+    import json
+    analyzer = DataAnalyzer()
+    analyzer.add_experimental_data(experimental_data)
+    analyzer.add_theoretical_data(theoretical_data)
+    error_metrics = analyzer.calculate_error_metrics()
+    fig = analyzer.visualize_comparison()
+    # Optional export csv
+    if export_csv:
+        import pandas as pd
+        df = pd.DataFrame([error_metrics])
+        df.to_csv(export_csv, index=False)
+        print(f"Error analysis results exported to {export_csv}")
+    if export_json:
+        with open(export_json, 'w', encoding='utf-8') as f:
+            json.dump(error_metrics, f, ensure_ascii=False, indent=2)
+        print(f"Error analysis results exported to {export_json}")
+    print("Error analysis metrics:")
+    for k, v in error_metrics.items():
+        print(f"{k}: {v}")
+    return error_metrics, fig
+
+def run_batch_error_analysis(
+    exp_theo_data_pairs,
+    export_csv=None,
+    export_json=None
+):
+    """
+    Batch error analysis for multiple experimental-theoretical data pairs.
+    Parameters:
+        exp_theo_data_pairs: list, each item is a tuple (experimental_data, theoretical_data)
+        export_csv: str, optional, export csv file name
+        export_json: str, optional, export json file name
+    Returns:
+        metrics_list: list, all error metrics lists
+    """
+    from data_analyzer import DataAnalyzer
+    import json
+    metrics_list = []
+    for idx, (exp_data, theo_data) in enumerate(exp_theo_data_pairs):
+        analyzer = DataAnalyzer()
+        analyzer.add_experimental_data(exp_data)
+        analyzer.add_theoretical_data(theo_data)
+        metrics = analyzer.calculate_error_metrics()
+        metrics['pair_index'] = idx
+        metrics_list.append(metrics)
+    # Optional export csv
+    if export_csv:
+        import pandas as pd
+        df = pd.DataFrame(metrics_list)
+        df.to_csv(export_csv, index=False)
+        print(f"Batch error analysis results exported to {export_csv}")
+    if export_json:
+        with open(export_json, 'w', encoding='utf-8') as f:
+            json.dump(metrics_list, f, ensure_ascii=False, indent=2)
+        print(f"Batch error analysis results exported to {export_json}")
+    print("Batch error analysis metrics:")
+    for m in metrics_list:
+        print(m)
+    return metrics_list
+
+def run_sensitivity_analysis(
+    param_name,
+    param_values,
+    base_params=None,
+    t_span=(0, 20),
+    t_points=1000,
+    export_csv=None,
+    export_json=None
+):
+    """
+    Multi-parameter sensitivity analysis.
+    Parameters:
+        param_name: str, parameter name to scan (e.g., 'length', 'damping', 'initial_angle' etc.)
+        param_values: list/array, parameter values
+        base_params: dict, baseline values for other parameters
+        t_span: tuple, simulation time range
+        t_points: int, number of simulation time points
+        export_csv: str, optional, export csv file name
+        export_json: str, optional, export json file name
+    Returns:
+        results_df: pandas.DataFrame, sensitivity analysis results
+        fig: matplotlib.figure, result visualization figure
+    """
+    import pandas as pd
+    import json
+    from data_analyzer import DataAnalyzer
+    if base_params is None:
+        base_params = dict(length=1.0, mass=0.1, gravity=9.8, damping=0.1, initial_angle=np.pi/6)
+    records = []
+    for val in param_values:
+        params = base_params.copy()
+        params[param_name] = val
+        pendulum = PendulumSimulation(**params)
+        sim_result = pendulum.simulate(t_span=t_span, t_points=t_points)
+        # Period, g value, damping coefficient
+        periods, avg_period = pendulum.calculate_periods()
+        g_val = pendulum.calculate_gravity()
+        # Damping coefficient fitting
+        angles = sim_result['angle']
+        times = sim_result['time']
+        peaks = []
+        peak_times = []
+        for i in range(1, len(angles)-1):
+            if angles[i] > angles[i-1] and angles[i] > angles[i+1]:
+                peaks.append(abs(angles[i]))
+                peak_times.append(times[i])
+        peaks = np.array(peaks)
+        peak_times = np.array(peak_times)
+        analyzer = DataAnalyzer()
+        damping_fit = analyzer.analyze_damping(peak_times, peaks)
+        records.append({
+            param_name: val,
+            'avg_period': avg_period,
+            'g_value': g_val,
+            'damping_coefficient': damping_fit['damping_coefficient'],
+            'damping_uncertainty': damping_fit['damping_uncertainty']
+        })
+    df = pd.DataFrame(records)
+    # Optional export csv
+    if export_csv:
+        df.to_csv(export_csv, index=False)
+        print(f"Sensitivity analysis results exported to {export_csv}")
+    if export_json:
+        with open(export_json, 'w', encoding='utf-8') as f:
+            json.dump(records, f, ensure_ascii=False, indent=2)
+        print(f"Sensitivity analysis results exported to {export_json}")
+    # Visualization
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(1, 3, figsize=(18,5))
+    axes[0].plot(df[param_name], df['avg_period'], 'o-')
+    axes[0].set_title('周期-参数关系')
+    axes[0].set_xlabel(param_name)
+    axes[0].set_ylabel('平均周期 (s)')
+    axes[1].plot(df[param_name], df['g_value'], 'o-')
+    axes[1].set_title('g值-参数关系')
+    axes[1].set_xlabel(param_name)
+    axes[1].set_ylabel('g值 (m/s²)')
+    axes[2].errorbar(df[param_name], df['damping_coefficient'], yerr=df['damping_uncertainty'], fmt='o-')
+    axes[2].set_title('阻尼系数-参数关系')
+    axes[2].set_xlabel(param_name)
+    axes[2].set_ylabel('阻尼系数')
+    plt.tight_layout()
+    return df, fig
+
+# Example usage (can be called from command line or Notebook)
+if __name__ == "__main__":
+    # Example: Batch simulate 5 different lengths
+    lengths = np.linspace(0.5, 1.5, 5)
+    run_full_experiment(lengths, export_csv="pendulum_exp_results.csv")
+    # Example: Damping analysis
+    run_damping_analysis(export_csv="damping_analysis.csv")
+    # Example: Error analysis and comparison
+    pendulum = PendulumSimulation()
+    exp_data = pendulum.simulate()
+    theo_data = pendulum.simulate()
+    run_error_analysis_and_comparison(exp_data, theo_data, export_csv="error_analysis.csv")
+    # Example: Batch error analysis
+    pairs = [(exp_data, theo_data) for _ in range(3)]
+    run_batch_error_analysis(pairs, export_csv="batch_error_analysis.csv")
+    # Example: Sensitivity analysis
+    run_sensitivity_analysis('damping', np.linspace(0.01, 0.2, 6), export_csv="sensitivity_analysis.csv") 

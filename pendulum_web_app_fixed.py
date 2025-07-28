@@ -8,19 +8,34 @@ import base64
 from io import BytesIO
 import matplotlib
 matplotlib.rcParams['axes.unicode_minus'] = False
+matplotlib.use('Agg')  # 使用非交互式后端以避免字体问题
+# 导入中文字体支持
+try:
+    from font_helper import add_chinese_font_support, setup_plotly_chinese_fonts
+    # 添加中文字体支持
+    add_chinese_font_support()
+    # 获取Plotly字体配置
+    plotly_font = setup_plotly_chinese_fonts()
+    print("成功导入中文字体支持")
+except Exception as e:
+    print(f"导入中文字体支持失败: {e}")
+    # 备用方案
+    matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+    plotly_font = {'family': 'SimHei, Arial, sans-serif', 'size': 14}
 import time
 import pandas as pd  # 确保pandas被导入
+import json
 
 # 设置页面
-st.set_page_config(page_title="单摆精确测量可视化平台", layout="wide")
+st.set_page_config(page_title="单摆精密测量平台", layout="wide")
 
 # 页面标题
-st.title("单摆精确测量可视化平台")
+st.title("单摆精密测量平台")
 
 st.markdown("""
-这个应用程序允许你模拟单摆运动，调整各种参数，并可视化结果。你可以：
-- 观察单摆的运动轨迹和能量变化
-- 比较理论与"实验"数据
+本应用程序允许您模拟单摆运动，调整各种参数，并可视化结果。您可以：
+- 观察单摆运动轨迹和能量变化
+- 比较理论和"实验"数据
 - 测量重力加速度
 """)
 
@@ -30,59 +45,59 @@ st.sidebar.header("参数设置")
 # 侧边栏中的应用选择
 app_mode = st.sidebar.selectbox(
     "选择模式", 
-    ["单摆基本模拟", "理论与实验数据对比", "重力加速度测量"]
+    ["基础单摆模拟", "理论与实验对比", "重力加速度测量"]
 )
 
 # 添加参数科学说明折叠面板
-with st.sidebar.expander("参数影响详解", expanded=False):
+with st.sidebar.expander("参数效应说明", expanded=False):
     st.markdown("""
-    ### 参数对单摆运动的科学影响
+    ### 参数对单摆运动的科学效应
 
-    **1. 摆长 (L)**
-    - **影响周期**: $T = 2\pi \sqrt{L/g}$。摆长增加，周期增加，呈平方根关系。
-    - **影响振动频率**: $f = \frac{1}{2\pi}\sqrt{g/L}$，摆长增加，振动频率减小。
-    - **影响角加速度**: $\ddot{\theta} = -\frac{g}{L}\sin\theta$，摆长增加，角加速度减小。
+    **1. Length (L)**
+    - **Effect on Period**: $T = 2\pi \sqrt{L/g}$. Increasing length increases period by square root relationship.
+    - **Effect on Frequency**: $f = \frac{1}{2\pi}\sqrt{g/L}$, increasing length decreases vibration frequency.
+    - **Effect on Angular Acceleration**: $\ddot{\theta} = -\frac{g}{L}\sin\theta$, increasing length decreases angular acceleration.
     
-    **2. 质量 (m)**
-    - **对周期无影响**: 在理想单摆中，周期完全独立于质量（对比现实摆锤，其角动量与质量有关）。
-    - **影响阻尼比**: $\zeta = \frac{b}{2m\omega_0L}$，质量增加，阻尼比减小，振动持续时间更长。
-    - **影响能量幅度**: 质量增加，系统总能量增加（$E \propto m$），但运动特性不变。
+    **2. Mass (m)**
+    - **No Effect on Period**: In ideal pendulum, period is completely independent of mass (unlike real pendulums where angular momentum relates to mass).
+    - **Effect on Damping Ratio**: $\zeta = \frac{b}{2m\omega_0L}$, increasing mass decreases damping ratio, resulting in longer vibration time.
+    - **Effect on Energy Amplitude**: Increasing mass increases system total energy ($E \propto m$), but motion characteristics remain unchanged.
     
-    **3. 重力加速度 (g)**
-    - **影响周期**: $T = 2\pi \sqrt{L/g}$。重力加速度增加，周期减小，呈反比例平方根关系。
-    - **影响平衡恢复力**: $F_{恢复} = mg\sin\theta$。g增加，恢复力增加，振荡更快。
-    - **影响固有频率**: $\omega_0 = \sqrt{g/L}$，重力加速度增加，固有频率增加。
+    **3. Gravity (g)**
+    - **Effect on Period**: $T = 2\pi \sqrt{L/g}$. Increasing gravity decreases period, by inverse square root relationship.
+    - **Effect on Restoring Force**: $F_{restore} = mg\sin\theta$. Increasing g increases restoring force, causing faster oscillation.
+    - **Effect on Natural Frequency**: $\omega_0 = \sqrt{g/L}$, increasing gravity increases natural frequency.
     
-    **4. 阻尼系数 (b)**
-    - **影响振幅衰减率**: $\gamma = \frac{b}{2mL}$，阻尼系数增加，振幅衰减更快。
-    - **影响能量损耗率**: $\frac{dE}{dt} = -b(\frac{d\theta}{dt})^2$，阻尼系数增加，能量损耗更快。
-    - **影响系统类型**:
-        * $\zeta < 1$: 欠阻尼（振荡衰减）
-        * $\zeta = 1$: 临界阻尼（无振荡最快回到平衡）
-        * $\zeta > 1$: 过阻尼（无振荡缓慢回到平衡）
+    **4. Damping Coefficient (b)**
+    - **Effect on Amplitude Decay Rate**: $\gamma = \frac{b}{2mL}$, increasing damping coefficient causes faster amplitude decay.
+    - **Effect on Energy Loss Rate**: $\frac{dE}{dt} = -b(\frac{d\theta}{dt})^2$, increasing damping coefficient causes faster energy loss.
+    - **Effect on System Type**:
+        * $\zeta < 1$: Underdamped (oscillatory decay)
+        * $\zeta = 1$: Critically damped (fastest return to equilibrium without oscillation)
+        * $\zeta > 1$: Overdamped (slow return to equilibrium without oscillation)
     
-    **5. 初始角度 ($\\theta_0$)**
-    - **影响非线性效应**: 角度越大，非线性效应越显著：
-        * 小角度（$<10°$）：$\sin\theta \approx \theta$，近似为简谐运动
-        * 大角度：需考虑完整的非线性方程，周期变长
-    - **影响周期修正**: $T = T_0(1 + \frac{\theta_0^2}{16} + ...)$，初始角度增加，实际周期增加。
-    - **影响最大位移**: 初始角度决定了摆球的最大位移和最大势能。
+    **5. Initial Angle ($\\theta_0$)**
+    - **Effect on Nonlinearity**: Larger angles result in more significant nonlinear effects:
+        * Small angles ($<10°$): $\sin\theta \approx \theta$, approximates simple harmonic motion
+        * Large angles: Requires full nonlinear equation, period increases
+    - **Effect on Period Correction**: $T = T_0(1 + \frac{\theta_0^2}{16} + ...)$, increasing initial angle increases actual period.
+    - **Effect on Maximum Displacement**: Initial angle determines maximum bob displacement and maximum potential energy.
     
-    **6. 模拟时长**
-    - **影响周期测量精度**: 时长增加，可观测更多完整周期，统计平均更准确。
-    - **影响阻尼效应观测**: 较长时间可观察到完整的振幅衰减过程。
+    **6. Simulation Duration**
+    - **Effect on Period Measurement Precision**: Longer duration allows observing more complete periods, more accurate statistical average.
+    - **Effect on Damping Observation**: Longer time allows observing complete amplitude decay process.
     
-    这些参数关系基于精确的物理模型和非线性微分方程求解，考虑了大角度摆动的非线性效应和阻尼效应。
+    These parameter relationships are based on precise physical models and nonlinear differential equation solutions, considering large angle nonlinear effects and damping effects.
     """)
 
 # 通用参数设置
-with st.sidebar.expander("基础参数", expanded=True):
+with st.sidebar.expander("基本参数", expanded=True):
     length = st.slider("摆长 (m)", 0.1, 2.0, 1.0, 0.1)
     mass = st.slider("质量 (kg)", 0.01, 1.0, 0.1, 0.01)
     gravity = st.slider("重力加速度 (m/s²)", 1.0, 20.0, 9.8, 0.1)
     damping = st.slider("阻尼系数", 0.0, 1.0, 0.1, 0.01)
     initial_angle = st.slider("初始角度 (°)", 5, 90, 30, 5)
-    t_end = st.slider("模拟时长 (秒)", 5, 30, 10, 1)
+    t_end = st.slider("模拟时长 (s)", 5, 30, 10, 1)
 
 # 将度数转换为弧度
 initial_angle_rad = np.deg2rad(initial_angle)
@@ -164,21 +179,21 @@ def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx, an
            f'θ={np.rad2deg(angle):.1f}°', fontsize=10)
     
     # 添加文本信息
-    ax.set_title('单摆运动详细分析', fontsize=14)
+    ax.set_title('Pendulum Motion Detailed Analysis', fontsize=14)
     
     # 添加状态信息文本框
     info_text = (
-        f"时间: {time_val[frame_idx]:.2f} s\n"
-        f"角度: {angle:.2f} rad ({np.rad2deg(angle):.1f}°)\n"
-        f"周期: {2*np.pi*np.sqrt(length/gravity):.4f} s\n"
-        f"位置: ({x:.3f}, {y:.3f}) m"
+        f"Time: {time_val[frame_idx]:.2f} s\n"
+        f"Angle: {angle:.2f} rad ({np.rad2deg(angle):.1f}°)\n"
+        f"Period: {2*np.pi*np.sqrt(length/gravity):.4f} s\n"
+        f"Position: ({x:.3f}, {y:.3f}) m"
     )
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
     ax.text(0.02, 0.98, info_text, transform=ax.transAxes, fontsize=10,
            verticalalignment='top', bbox=props)
     
     # 添加图例
-    ax.legend(['轨迹', '近期轨迹', '摆点', '摆杆', '摆球'], 
+    ax.legend(['Trajectory', 'Recent Trajectory', 'Pendulum Point', 'Pendulum Rod', 'Pendulum Ball'], 
              loc='lower right', fontsize=8)
     
     fig.tight_layout()
@@ -207,7 +222,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[0, y_pos[0]], 
             mode='lines', 
             line=dict(color='black', width=3),
-            name='摆杆',
+            name='Pendulum Rod',
             showlegend=False
         )
     )
@@ -219,7 +234,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[y_pos[0]], 
             mode='markers', 
             marker=dict(color='red', size=15),
-            name='摆球',
+            name='Pendulum Ball',
             showlegend=False
         )
     )
@@ -231,7 +246,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[0], 
             mode='markers', 
             marker=dict(color='black', size=10),
-            name='摆点',
+            name='Pendulum Point',
             showlegend=False
         )
     )
@@ -243,7 +258,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=y_pos[:1], 
             mode='lines', 
             line=dict(color='rgba(255,0,0,0.3)', width=2),
-            name='轨迹',
+            name='Trajectory',
             showlegend=False
         )
     )
@@ -251,15 +266,15 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
     # 设置布局
     axis_range = 1.5 * length
     fig.update_layout(
-        title=f"单摆运动动画 (周期: {period:.4f}秒)",
+        title=f"Pendulum Motion Animation (Period: {period:.4f}s)",
         xaxis=dict(
             range=[-axis_range, axis_range],
-            title="X位置 (m)",
+            title="X Position (m)",
             zeroline=True
         ),
         yaxis=dict(
             range=[-axis_range, 0.5 * length],
-            title="Y位置 (m)",
+            title="Y Position (m)",
             zeroline=True,
             scaleanchor="x",  # 保持坐标轴比例一致
             scaleratio=1
@@ -268,7 +283,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'type': 'buttons',
             'buttons': [
                 dict(
-                    label="播放",
+                    label="Play",
                     method="animate",
                     args=[None, {
                         "frame": {"duration": 50, "redraw": True},
@@ -277,7 +292,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
                     }]
                 ),
                 dict(
-                    label="暂停",
+                    label="Pause",
                     method="animate",
                     args=[[None], {
                         "frame": {"duration": 0, "redraw": True},
@@ -298,7 +313,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'steps': [
                 {
                     'method': 'animate',
-                    'label': f'{time_data[i]:.1f}秒',
+                    'label': f'{time_data[i]:.1f}s',
                     'args': [[f'frame{i}'], {
                         'frame': {'duration': 0, 'redraw': True},
                         'mode': 'immediate',
@@ -312,7 +327,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'pad': {'l': 10, 'r': 10, 't': 50, 'b': 10},
             'currentvalue': {
                 'visible': True,
-                'prefix': '时间: ',
+                'prefix': 'Time: ',
                 'xanchor': 'right',
                 'font': {'size': 12, 'color': '#666'}
             },
@@ -362,12 +377,12 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
         if angle_data is not None and angular_velocity is not None and kinetic_energy is not None and potential_energy is not None:
             # 添加实时数据文本
             data_text = (
-                f"时间: {time_data[idx]:.2f}秒<br>"
-                f"角度: {angle_data[idx]:.3f}rad<br>"
-                f"角速度: {angular_velocity[idx]:.3f}rad/s<br>"
-                f"动能: {kinetic_energy[idx]:.3f}J<br>"
-                f"势能: {potential_energy[idx]:.3f}J<br>"
-                f"总能量: {kinetic_energy[idx] + potential_energy[idx]:.3f}J"
+                f"Time: {time_data[idx]:.2f}s<br>"
+                f"Angle: {angle_data[idx]:.3f}rad<br>"
+                f"Angular Velocity: {angular_velocity[idx]:.3f}rad/s<br>"
+                f"Kinetic Energy: {kinetic_energy[idx]:.3f}J<br>"
+                f"Potential Energy: {potential_energy[idx]:.3f}J<br>"
+                f"Total Energy: {kinetic_energy[idx] + potential_energy[idx]:.3f}J"
             )
             
             # 添加数据注释
@@ -471,74 +486,74 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
         "g_calculated": g_calculated
     }
 
-if app_mode == "单摆基本模拟":
-    st.header("单摆基本模拟")
+if app_mode == "基础单摆模拟":
+    st.header("基础单摆模拟")
     
     # 添加物理原理解释
-    with st.expander("单摆物理模型详解", expanded=False):
+    with st.expander("单摆物理模型解释", expanded=False):
         st.markdown("""
-        ### 单摆物理模型的精确描述
+        ### 单摆物理模型精确描述
         
-        单摆是物理学中的一个基础模型，它由一个质点（摆球）通过一根不可伸长的轻质绳索（摆杆）连接到固定点上构成。
+        A pendulum is a fundamental model in physics, consisting of a point mass (pendulum bob) connected to a fixed point by a rigid, massless string (pendulum rod).
 
-        #### 基本微分方程
+        #### Basic Differential Equation
         
-        单摆运动满足如下非线性微分方程：
+        The pendulum motion satisfies the following nonlinear differential equation:
 
         $$\\frac{d^2\\theta}{dt^2} + \\frac{b}{mL}\\frac{d\\theta}{dt} + \\frac{g}{L}\\sin\\theta = 0$$
 
-        其中：
-        - $\\theta$ 是摆的偏角（从垂直方向测量）
-        - $L$ 是摆长
-        - $g$ 是重力加速度
-        - $m$ 是摆球质量
-        - $b$ 是阻尼系数（与空气阻力相关）
+        Where:
+        - $\\theta$ is the pendulum's angular displacement (measured from the vertical direction)
+        - $L$ is the pendulum length
+        - $g$ is the gravitational acceleration
+        - $m$ is the pendulum bob mass
+        - $b$ is the damping coefficient (related to air resistance)
         
-        #### 小角度近似与非线性效应
+        #### Small Angle Approximation and Nonlinear Effects
         
-        当初始角度很小时（通常小于10°），可以使用小角近似 $\\sin\\theta \\approx \\theta$，此时方程简化为：
+        When the initial angle is very small (usually less than 10°), the small angle approximation $\\sin\\theta \\approx \\theta$ can be used, simplifying the equation to:
 
         $$\\frac{d^2\\theta}{dt^2} + \\frac{b}{mL}\\frac{d\\theta}{dt} + \\frac{g}{L}\\theta = 0$$
         
-        这是一个简谐振动的方程，具有简单的解析解。然而，当角度较大时，必须考虑完整的非线性方程。
+        This is a simple harmonic motion equation with a straightforward analytical solution. However, when the angle is large, the full nonlinear equation must be considered.
 
-        #### 周期公式
+        #### Period Formula
         
-        - **小角近似下的周期**：$T = 2\\pi\\sqrt{\\frac{L}{g}}$
+        - **Period under Small Angle Approximation**: $T = 2\\pi\\sqrt{\\frac{L}{g}}$
         
-        - **考虑非线性效应的周期**：$T = 2\\pi\\sqrt{\\frac{L}{g}}\\left(1 + \\frac{1}{16}\\sin^2\\frac{\\theta_0}{2} + \\frac{11}{3072}\\sin^4\\frac{\\theta_0}{2} + ...\\right)$
+        - **Period considering Nonlinear Effects**: $T = 2\\pi\\sqrt{\\frac{L}{g}}\\left(1 + \\frac{1}{16}\\sin^2\\frac{\\theta_0}{2} + \\frac{11}{3072}\\sin^4\\frac{\\theta_0}{2} + ...\\right)$
         
-        - **考虑阻尼的周期**：$T = \\frac{2\\pi}{\\omega_0\\sqrt{1-\\zeta^2}}$，其中$\\omega_0 = \\sqrt{\\frac{g}{L}}$，$\\zeta = \\frac{b}{2m\\omega_0L}$
+        - **Period considering Damping**: $T = \\frac{2\\pi}{\\omega_0\\sqrt{1-\\zeta^2}}$，其中$\\omega_0 = \\sqrt{\\frac{g}{L}}$，$\\zeta = \\frac{b}{2m\\omega_0L}$
         
-        #### 能量分析
+        #### Energy Analysis
         
-        单摆的总能量由动能和势能组成：
+        The total energy of a pendulum consists of kinetic and potential energy:
 
-        - **动能**：$K = \\frac{1}{2}mL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
+        - **Kinetic Energy**: $K = \\frac{1}{2}mL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
         
-        - **势能**：$U = mgL(1-\\cos\\theta)$ (相对于最低点)
+        - **Potential Energy**: $U = mgL(1-\\cos\\theta)$ (relative to the lowest point)
         
-        - **总能量**：$E = K + U$
+        - **Total Energy**: $E = K + U$
         
-        在有阻尼的情况下，能量随时间损耗：$\\frac{dE}{dt} = -bL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
+        In the presence of damping, energy dissipates over time: $\\frac{dE}{dt} = -bL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
 
-        #### 数值求解方法
+        #### Numerical Solution Method
         
-        本模拟使用了Runge-Kutta 4-5阶方法（RK45）求解微分方程，这是一种高精度的自适应步长积分算法，能够准确处理非线性系统的演化。相对误差容限设为 $10^{-10}$，绝对误差容限设为 $10^{-10}$，确保高精度计算。
+        This simulation uses the Runge-Kutta 4-5th order method (RK45) to solve the differential equation, which is a high-precision adaptive step integration algorithm capable of accurately handling the evolution of nonlinear systems. The relative error tolerance is set to $10^{-10}$, and the absolute error tolerance is set to $10^{-10}$, ensuring high-precision calculations.
         
-        #### 重力加速度测量原理
+        #### Gravity Acceleration Measurement Principle
         
-        通过测量周期 $T$，可以计算重力加速度：
+        By measuring the period $T$, gravitational acceleration can be calculated:
         
-        - **基本公式**：$g = 4\\pi^2L/T^2$
+        - **Basic Formula**: $g = 4\\pi^2L/T^2$
         
-        - **大角度修正**：$g = 4\\pi^2L/T^2 \\cdot \\left(1 - \\frac{\\sin^2(\\theta_0/2)}{16} - ...\\right)^{-2}$
+        - **Large Angle Correction**: $g = 4\\pi^2L/T^2 \\cdot \\left(1 - \\frac{\\sin^2(\\theta_0/2)}{16} - ...\\right)^{-2}$
         
-        这种修正在初始角度大于约5.7度($0.1$ rad)时应用，可显著提高测量精度。
+        This correction is applied when the initial angle is greater than about 5.7 degrees ($0.1$ rad), significantly improving measurement accuracy.
         """)
     
     # 使用缓存运行模拟
-    with st.spinner("运行单摆模拟..."):
+    with st.spinner("Running pendulum simulation..."):
         sim_data = run_simulation_data(
             length, mass, gravity, damping, initial_angle_rad, t_end
         )
@@ -559,9 +574,9 @@ if app_mode == "单摆基本模拟":
     # 显示关键结果
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("测量的平均周期", f"{avg_period:.6f} 秒")
+        st.metric("测量平均周期", f"{avg_period:.6f} s")
     with col2:
-        st.metric("计算的重力加速度", f"{g_calculated:.6f} m/s²")
+        st.metric("计算得到的重力加速度", f"{g_calculated:.6f} m/s²")
     with col3:
         theory_period = 2 * np.pi * np.sqrt(length / gravity)
         error = abs(avg_period - theory_period)/theory_period*100
@@ -572,31 +587,31 @@ if app_mode == "单摆基本模拟":
     
     with tab1:
         # 动画设置
-        st.info("单摆运动动画。使用交互式控件播放、暂停和拖动时间滑块。")
+        st.info("单摆运动动画。使用交互控件播放、暂停，并拖动时间滑块。")
         
         # 动画选择
         animation_type = st.radio(
             "选择动画类型",
-            ["Plotly交互动画", "帧序列动画"],
+            ["Plotly交互式动画", "帧序列动画"],
             horizontal=True
         )
         
-        if animation_type == "Plotly交互动画":
+        if animation_type == "Plotly交互式动画":
             # 使用Plotly创建交互式动画
-            with st.spinner("生成交互式动画..."):
+            with st.spinner("Generating interactive animation..."):
                 plotly_fig = create_plotly_pendulum_animation(
                     x_position, y_position, time_data, length, gravity,
                     angle_data, angular_velocity, kinetic_energy, potential_energy
                 )
                 st.plotly_chart(plotly_fig, use_container_width=True)
-                st.caption("提示：使用播放按钮观看动画，拖动时间滑块可以查看特定时刻。动画中已包含实时数据显示。")
+                st.caption("Tip: Use the play button to watch the animation, drag the time slider to view specific moments. Real-time data is included in the animation.")
                 
                 # 添加实时数据显示面板
-                st.subheader("实时物理数据")
+                st.subheader("Real-time Physical Data")
                 
                 # 创建时间滑块，用于选择查看特定时刻的数据
                 time_idx = st.slider(
-                    "选择时间点 (秒)",
+                    "Select Time Point (s)",
                     min_value=float(time_data[0]),
                     max_value=float(time_data[-1]),
                     value=float(time_data[0]),
@@ -614,12 +629,12 @@ if app_mode == "单摆基本模拟":
                 with plotly_cols[0]:
                     # 角度和角速度
                     st.markdown(f"""
-                    ### 运动学数据
-                    - **时间**: {time_data[closest_idx]:.3f} 秒
-                    - **角度**: {angle_data[closest_idx]:.4f} rad ({np.rad2deg(angle_data[closest_idx]):.1f}°)
-                    - **角速度**: {angular_velocity[closest_idx]:.4f} rad/s
-                    - **X位置**: {x_position[closest_idx]:.4f} m
-                    - **Y位置**: {y_position[closest_idx]:.4f} m
+                    ### Kinematic Data
+                    - **Time**: {time_data[closest_idx]:.3f} s
+                    - **Angle**: {angle_data[closest_idx]:.4f} rad ({np.rad2deg(angle_data[closest_idx]):.1f}°)
+                    - **Angular Velocity**: {angular_velocity[closest_idx]:.4f} rad/s
+                    - **X Position**: {x_position[closest_idx]:.4f} m
+                    - **Y Position**: {y_position[closest_idx]:.4f} m
                     """)
                     # 新增：动态周期、g值估算
                     # 1. 动态周期估算（过零点法）
@@ -639,12 +654,12 @@ if app_mode == "单摆基本模拟":
                     g_dynamic = 4 * np.pi**2 * length / (avg_period**2) if avg_period else None
                     # 显示
                     st.markdown("""
-                    #### 实时周期与g值估算
+                    #### Real-time Period and g-value Estimation
                     """ + (
-                        f"- **已观测周期数**: {len(periods)}  "+
-                        (f"- **当前周期**: {periods[-1]:.4f} s  " if periods else "")+
-                        (f"- **平均周期**: {avg_period:.4f} s  " if avg_period else "")+
-                        (f"- **g值估算**: {g_dynamic:.4f} m/s²" if g_dynamic else "- **g值估算**: 暂无")
+                        f"- **Observed Periods**: {len(periods)}  "+
+                        (f"- **Current Period**: {periods[-1]:.4f} s  " if periods else "")+
+                        (f"- **Average Period**: {avg_period:.4f} s  " if avg_period else "")+
+                        (f"- **g-value Estimate**: {g_dynamic:.4f} m/s²" if g_dynamic else "- **g-value Estimate**: N/A")
                     ))
                     
                 with plotly_cols[1]:
@@ -659,12 +674,12 @@ if app_mode == "单摆基本模拟":
                     a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
                     
                     st.markdown(f"""
-                    ### 动力学数据
-                    - **速度大小**: {v_mag:.4f} m/s
-                    - **切向加速度**: {a_tan:.4f} m/s²
-                    - **法向加速度**: {a_n:.4f} m/s²
-                    - **总加速度**: {a_mag:.4f} m/s²
-                    - **恢复力**: {mass * gravity * np.sin(angle_data[closest_idx]):.4f} N
+                    ### Dynamic Data
+                    - **Speed Magnitude**: {v_mag:.4f} m/s
+                    - **Tangential Acceleration**: {a_tan:.4f} m/s²
+                    - **Normal Acceleration**: {a_n:.4f} m/s²
+                    - **Total Acceleration**: {a_mag:.4f} m/s²
+                    - **Restoring Force**: {mass * gravity * np.sin(angle_data[closest_idx]):.4f} N
                     """)
                     
                 with plotly_cols[2]:
@@ -672,16 +687,16 @@ if app_mode == "单摆基本模拟":
                     energy_loss_percent = (1 - total_energy[closest_idx]/total_energy[0]) * 100
                     
                     st.markdown(f"""
-                    ### 能量数据
-                    - **动能**: {kinetic_energy[closest_idx]:.6f} J
-                    - **势能**: {potential_energy[closest_idx]:.6f} J
-                    - **总能量**: {total_energy[closest_idx]:.6f} J
-                    - **能量损失**: {energy_loss_percent:.2f}%
-                    - **功率损耗**: {damping * (angular_velocity[closest_idx]**2):.6f} W
+                    ### Energy Data
+                    - **Kinetic Energy**: {kinetic_energy[closest_idx]:.6f} J
+                    - **Potential Energy**: {potential_energy[closest_idx]:.6f} J
+                    - **Total Energy**: {total_energy[closest_idx]:.6f} J
+                    - **Energy Loss**: {energy_loss_percent:.2f}%
+                    - **Power Loss**: {damping * (angular_velocity[closest_idx]**2):.6f} W
                     """)
                 
                 # 添加瞬时力学分析可视化
-                with st.expander("瞬时力学分析", expanded=True):
+                with st.expander("Instantaneous Mechanical Analysis", expanded=True):
                     # 创建当前时刻的力学分析图
                     force_fig = plt.figure(figsize=(10, 6))
                     
@@ -691,14 +706,14 @@ if app_mode == "单摆基本模拟":
                     ax1.plot(angle_data, angular_velocity, 'b-', alpha=0.3)
                     # 标记当前点
                     ax1.plot(angle_data[closest_idx], angular_velocity[closest_idx], 'ro')
-                    ax1.set_xlabel('角度 (rad)')
-                    ax1.set_ylabel('角速度 (rad/s)')
-                    ax1.set_title('相位空间')
+                    ax1.set_xlabel('Angle (rad)')
+                    ax1.set_ylabel('Angular Velocity (rad/s)')
+                    ax1.set_title('Phase Space')
                     ax1.grid(True)
                     
                     # 2. 能量条形图
                     ax2 = force_fig.add_subplot(1, 2, 2)
-                    energy_types = ['动能', '势能', '总能量']
+                    energy_types = ['Kinetic Energy', 'Potential Energy', 'Total Energy']
                     energy_values = [kinetic_energy[closest_idx], 
                                     potential_energy[closest_idx], 
                                     total_energy[closest_idx]]
@@ -712,12 +727,12 @@ if app_mode == "单摆基本模拟":
                         ax2.text(bar.get_x() + bar.get_width()/2., height + 0.001,
                                f'{height:.4f}J', ha='center', va='bottom', fontsize=9)
                     
-                    ax2.set_ylabel('能量 (J)')
-                    ax2.set_title(f'能量分布 (t={time_data[closest_idx]:.2f}s)')
+                    ax2.set_ylabel('Energy (J)')
+                    ax2.set_title(f'Energy Distribution (t={time_data[closest_idx]:.2f}s)')
                     
                     # 添加初始能量水平线作为参考
                     ax2.axhline(y=total_energy[0], color='black', linestyle='--', 
-                               alpha=0.7, label='初始能量')
+                               alpha=0.7, label='Initial Energy')
                     ax2.legend()
                     
                     force_fig.tight_layout()
@@ -725,22 +740,22 @@ if app_mode == "单摆基本模拟":
                     plt.close(force_fig)
         else:
             # 原始的帧序列动画
-            st.write("**动画控制**")
+            st.write("**Animation Controls**")
             col1, col2, col3 = st.columns([1, 1, 1])
             
             with col1:
-                play_animation = st.button("播放动画", use_container_width=True)
+                play_animation = st.button("Play Animation", use_container_width=True)
             with col2:
-                frame_speed = st.slider("播放速度", 1, 10, 5, 1)
+                frame_speed = st.slider("Playback Speed", 1, 10, 5, 1)
             with col3:
-                num_frames = st.slider("帧数", 20, 100, 50, 10)
+                num_frames = st.slider("Number of Frames", 20, 100, 50, 10)
             
             # 动画显示区域
             animation_container = st.empty()
             status_container = st.empty()
             
             # 添加实时数据显示容器
-            st.subheader("实时物理数据")
+            st.subheader("Real-time Physical Data")
             data_col1 = st.empty()
             data_col2 = st.empty()
             data_col3 = st.empty()
@@ -757,7 +772,7 @@ if app_mode == "单摆基本模拟":
                 for i, idx in enumerate(frame_indices):
                     # 显示进度
                     progress = (i + 1) / len(frame_indices)
-                    status_container.progress(progress, f"播放中... {i+1}/{len(frame_indices)}")
+                    status_container.progress(progress, f"Playing... {i+1}/{len(frame_indices)}")
                     
                     # 创建帧
                     fig = create_pendulum_frame(
@@ -769,12 +784,12 @@ if app_mode == "单摆基本模拟":
                     # 更新实时数据显示
                     with data_cols[0]:
                         data_col1.markdown(f"""
-                        ### 运动学数据
-                        - **时间**: {time_data[idx]:.3f} 秒
-                        - **角度**: {angle_data[idx]:.4f} rad ({np.rad2deg(angle_data[idx]):.1f}°)
-                        - **角速度**: {angular_velocity[idx]:.4f} rad/s
-                        - **X位置**: {x_position[idx]:.4f} m
-                        - **Y位置**: {y_position[idx]:.4f} m
+                        ### Kinematic Data
+                        - **Time**: {time_data[idx]:.3f} s
+                        - **Angle**: {angle_data[idx]:.4f} rad ({np.rad2deg(angle_data[idx]):.1f}°)
+                        - **Angular Velocity**: {angular_velocity[idx]:.4f} rad/s
+                        - **X Position**: {x_position[idx]:.4f} m
+                        - **Y Position**: {y_position[idx]:.4f} m
                         """)
                     
                     with data_cols[1]:
@@ -789,12 +804,12 @@ if app_mode == "单摆基本模拟":
                         a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
                         
                         data_col2.markdown(f"""
-                        ### 动力学数据
-                        - **速度大小**: {v_mag:.4f} m/s
-                        - **切向加速度**: {a_tan:.4f} m/s²
-                        - **法向加速度**: {a_n:.4f} m/s²
-                        - **总加速度**: {a_mag:.4f} m/s²
-                        - **恢复力**: {mass * gravity * np.sin(angle_data[idx]):.4f} N
+                        ### Dynamic Data
+                        - **Speed Magnitude**: {v_mag:.4f} m/s
+                        - **Tangential Acceleration**: {a_tan:.4f} m/s²
+                        - **Normal Acceleration**: {a_n:.4f} m/s²
+                        - **Total Acceleration**: {a_mag:.4f} m/s²
+                        - **Restoring Force**: {mass * gravity * np.sin(angle_data[idx]):.4f} N
                         """)
                     
                     with data_cols[2]:
@@ -802,12 +817,12 @@ if app_mode == "单摆基本模拟":
                         energy_loss = (1 - total_energy[idx]/total_energy[0]) * 100
                         
                         data_col3.markdown(f"""
-                        ### 能量数据
-                        - **动能**: {kinetic_energy[idx]:.6f} J
-                        - **势能**: {potential_energy[idx]:.6f} J
-                        - **总能量**: {total_energy[idx]:.6f} J
-                        - **能量损失**: {energy_loss:.2f}%
-                        - **功率损耗**: {damping * (angular_velocity[idx]**2):.6f} W
+                        ### Energy Data
+                        - **Kinetic Energy**: {kinetic_energy[idx]:.6f} J
+                        - **Potential Energy**: {potential_energy[idx]:.6f} J
+                        - **Total Energy**: {total_energy[idx]:.6f} J
+                        - **Energy Loss**: {energy_loss:.2f}%
+                        - **Power Loss**: {damping * (angular_velocity[idx]**2):.6f} W
                         """)
                     
                     # 控制帧速率
@@ -815,7 +830,7 @@ if app_mode == "单摆基本模拟":
                     time.sleep(delay)
                 
                 # 动画完成
-                status_container.success("动画播放完成！点击'播放动画'按钮重新播放。")
+                status_container.success("Animation playback complete! Click 'Play Animation' to replay.")
             else:
                 # 初始帧
                 fig = create_pendulum_frame(
@@ -823,17 +838,17 @@ if app_mode == "单摆基本模拟":
                 )
                 animation_container.pyplot(fig)
                 plt.close(fig)
-                status_container.info("点击'播放动画'按钮开始播放。")
+                status_container.info("Click 'Play Animation' to start playback.")
                 
                 # 显示初始状态数据
                 with data_cols[0]:
                     data_col1.markdown(f"""
-                    ### 初始运动学数据
-                    - **时间**: {time_data[0]:.3f} 秒
-                    - **角度**: {angle_data[0]:.4f} rad ({np.rad2deg(angle_data[0]):.1f}°)
-                    - **角速度**: {angular_velocity[0]:.4f} rad/s
-                    - **X位置**: {x_position[0]:.4f} m
-                    - **Y位置**: {y_position[0]:.4f} m
+                    ### Initial Kinematic Data
+                    - **Time**: {time_data[0]:.3f} s
+                    - **Angle**: {angle_data[0]:.4f} rad ({np.rad2deg(angle_data[0]):.1f}°)
+                    - **Angular Velocity**: {angular_velocity[0]:.4f} rad/s
+                    - **X Position**: {x_position[0]:.4f} m
+                    - **Y Position**: {y_position[0]:.4f} m
                     """)
                 
                 with data_cols[1]:
@@ -848,38 +863,38 @@ if app_mode == "单摆基本模拟":
                     a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
                     
                     data_col2.markdown(f"""
-                    ### 初始动力学数据
-                    - **速度大小**: {v_mag:.4f} m/s
-                    - **切向加速度**: {a_tan:.4f} m/s²
-                    - **法向加速度**: {a_n:.4f} m/s²
-                    - **总加速度**: {a_mag:.4f} m/s²
-                    - **恢复力**: {mass * gravity * np.sin(angle_data[0]):.4f} N
+                    ### Initial Dynamic Data
+                    - **Speed Magnitude**: {v_mag:.4f} m/s
+                    - **Tangential Acceleration**: {a_tan:.4f} m/s²
+                    - **Normal Acceleration**: {a_n:.4f} m/s²
+                    - **Total Acceleration**: {a_mag:.4f} m/s²
+                    - **Restoring Force**: {mass * gravity * np.sin(angle_data[0]):.4f} N
                     """)
                 
                 with data_cols[2]:
                     data_col3.markdown(f"""
-                    ### 初始能量数据
-                    - **动能**: {kinetic_energy[0]:.6f} J
-                    - **势能**: {potential_energy[0]:.6f} J
-                    - **总能量**: {total_energy[0]:.6f} J
-                    - **能量损失**: 0.00%
-                    - **功率损耗**: {damping * (angular_velocity[0]**2):.6f} W
+                    ### Initial Energy Data
+                    - **Kinetic Energy**: {kinetic_energy[0]:.6f} J
+                    - **Potential Energy**: {potential_energy[0]:.6f} J
+                    - **Total Energy**: {total_energy[0]:.6f} J
+                    - **Energy Loss**: 0.00%
+                    - **Power Loss**: {damping * (angular_velocity[0]**2):.6f} W
                     """)
                 
                 # 添加理论数据对比图表
-                st.subheader("理论与实测周期对比")
+                st.subheader("Theoretical vs Measured Period Comparison")
                 theory_period = 2 * np.pi * np.sqrt(length / gravity)
                 angle_correction = 1 + np.sin(initial_angle_rad/2)**2 / 16
                 corrected_period = theory_period * angle_correction
                 
                 data = {
-                    '类型': ['小角近似周期', '大角修正周期', '实测平均周期'],
-                    '周期值 (s)': [theory_period, corrected_period, avg_period]
+                    'Type': ['Small Angle Period', 'Large Angle Corrected Period', 'Measured Average Period'],
+                    'Period Value (s)': [theory_period, corrected_period, avg_period]
                 }
                 
                 chart = plt.figure(figsize=(10, 4))
                 ax = chart.add_subplot(111)
-                bars = ax.bar(data['类型'], data['周期值 (s)'], color=['blue', 'green', 'red'])
+                bars = ax.bar(data['Type'], data['Period Value (s)'], color=['blue', 'green', 'red'])
                 
                 # 添加数值标签
                 for bar in bars:
@@ -887,8 +902,8 @@ if app_mode == "单摆基本模拟":
                     ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                            f'{height:.6f}s', ha='center', va='bottom')
                 
-                ax.set_ylabel('周期 (秒)')
-                ax.set_title('周期对比')
+                ax.set_ylabel('Period (seconds)')
+                ax.set_title('Period Comparison')
                 chart.tight_layout()
                 
                 st.pyplot(chart)
@@ -896,7 +911,7 @@ if app_mode == "单摆基本模拟":
     
     with tab2:
         # 手动生成可视化图表
-        with st.spinner("生成图表..."):
+        with st.spinner("Generating charts..."):
             # 创建新的单摆实例来获取图表
             pendulum = PendulumSimulation(
                 length=length, 
@@ -924,13 +939,13 @@ if app_mode == "单摆基本模拟":
     
     with tab3:
         # 显示数据
-        st.subheader("模拟数据")
+        st.subheader("Simulation Data")
         data = {
-            "时间 (s)": time_data,
-            "角度 (rad)": angle_data,
-            "X位置 (m)": x_position,
-            "Y位置 (m)": y_position,
-            "总能量 (J)": total_energy
+            "Time (s)": time_data,
+            "Angle (rad)": angle_data,
+            "X Position (m)": x_position,
+            "Y Position (m)": y_position,
+            "Total Energy (J)": total_energy
         }
         
         # 仅显示部分数据点
@@ -943,16 +958,16 @@ if app_mode == "单摆基本模拟":
         st.dataframe(data)
         
         # 添加下载按钮
-        csv = np.column_stack([data["时间 (s)"], data["角度 (rad)"], data["X位置 (m)"], data["Y位置 (m)"], data["总能量 (J)"]])
+        csv = np.column_stack([data["Time (s)"], data["Angle (rad)"], data["X Position (m)"], data["Y Position (m)"], data["Total Energy (J)"]])
         
         # 使用pandas导出为CSV，以处理中文编码问题
         import pandas as pd
         csv_df = pd.DataFrame({
-            'time': data["时间 (s)"], 
-            'angle': data["角度 (rad)"], 
-            'x_pos': data["X位置 (m)"], 
-            'y_pos': data["Y位置 (m)"], 
-            'energy': data["总能量 (J)"]
+            'time': data["Time (s)"], 
+            'angle': data["Angle (rad)"], 
+            'x_pos': data["X Position (m)"], 
+            'y_pos': data["Y Position (m)"], 
+            'energy': data["Total Energy (J)"]
         })
         
         # 转换为CSV字符串
@@ -961,14 +976,14 @@ if app_mode == "单摆基本模拟":
         csv_buffer.seek(0)
         
         st.download_button(
-            label="下载数据为CSV",
+            label="Download Data as CSV",
             data=csv_buffer,
             file_name="pendulum_simulation_data.csv",
             mime="text/csv"
         )
 
-elif app_mode == "理论与实验数据对比":
-    st.header("理论与实验数据对比")
+elif app_mode == "理论与实验对比":
+    st.header("理论与实验对比")
     
     # 添加额外的实验参数
     with st.sidebar.expander("实验参数", expanded=True):
@@ -981,7 +996,7 @@ elif app_mode == "理论与实验数据对比":
     exp_angle_error_rad = np.deg2rad(exp_angle_error)
     
     # 创建理论模型
-    with st.spinner("运行理论模型..."):
+    with st.spinner("Running theoretical model..."):
         theory = PendulumSimulation(
             length=length,
             mass=mass,
@@ -992,7 +1007,7 @@ elif app_mode == "理论与实验数据对比":
         theory_results = theory.simulate(t_span=(0, t_end), t_points=500)
     
     # 创建实验模型
-    with st.spinner("运行实验模型..."):
+    with st.spinner("Running experimental model..."):
         experiment = PendulumSimulation(
             length=length,
             mass=mass,
@@ -1003,7 +1018,7 @@ elif app_mode == "理论与实验数据对比":
         exp_results = experiment.simulate(t_span=(0, t_end), t_points=500)
     
     # 添加噪声
-    with st.spinner("添加测量噪声..."):
+    with st.spinner("Adding measurement noise..."):
         np.random.seed(42)
         for key in ['angle', 'x_position', 'y_position']:
             noise = np.random.normal(0, noise_level, len(exp_results[key]))
@@ -1021,31 +1036,31 @@ elif app_mode == "理论与实验数据对比":
     analyzer = modify_analyzer_visualization(analyzer)
     
     # 计算误差指标
-    with st.spinner("计算误差指标..."):
+    with st.spinner("Calculating error metrics..."):
         error_metrics = analyzer.calculate_error_metrics()
     
     # 显示误差指标
-    st.subheader("误差指标")
+    st.subheader("Error Metrics")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("均方根误差 (RMSE)", f"{error_metrics['RMSE']:.6f}")
+        st.metric("Root Mean Square Error (RMSE)", f"{error_metrics['RMSE']:.6f}")
     with col2:
-        st.metric("平均绝对误差 (MAE)", f"{error_metrics['MAE']:.6f}")
+        st.metric("Mean Absolute Error (MAE)", f"{error_metrics['MAE']:.6f}")
     with col3:
-        st.metric("平均绝对百分比误差", f"{error_metrics['MAPE']:.2f}%")
+        st.metric("Mean Absolute Percentage Error", f"{error_metrics['MAPE']:.2f}%")
     
     # 可视化比较
-    st.subheader("数据对比可视化")
-    with st.spinner("生成对比图表..."):
+    st.subheader("Data Comparison Visualization")
+    with st.spinner("Generating comparison charts..."):
         fig = analyzer.visualize_comparison()
         st.pyplot(fig)
     
     # 保存数据
-    if st.button("保存对比数据为CSV"):
+    if st.button("Save Comparison Data as CSV"):
         analyzer.export_data_to_csv('pendulum_data_comparison.csv')
-        st.success("数据已保存到 pendulum_data_comparison.csv")
+        st.success("Data saved to pendulum_data_comparison.csv")
 
-elif app_mode == "重力加速度测量实验":
+elif app_mode == "重力加速度测量":
     st.header("重力加速度测量实验")
     
     with st.sidebar.expander("实验参数", expanded=True):
@@ -1062,7 +1077,7 @@ elif app_mode == "重力加速度测量实验":
     analyzer = DataAnalyzer()
     
     # 运行摆长周期实验
-    with st.spinner("运行不同摆长的周期测量..."):
+    with st.spinner("Running period measurement for different lengths..."):
         results, fig = analyzer.pendulum_length_vs_period_experiment(
             PendulumSimulation,
             lengths,
@@ -1076,73 +1091,143 @@ elif app_mode == "重力加速度测量实验":
     
     # 修改图表中的中文标签为英文
     for ax in fig.axes:
-        if "周期" in ax.get_title():
+        if "Period" in ax.get_title():
             ax.set_title("Period vs Length")
-        elif "验证" in ax.get_title():
+        elif "Verification" in ax.get_title():
             ax.set_title("T² vs L Relationship")
             
-        if "摆长" in ax.get_xlabel():
+        if "Length" in ax.get_xlabel():
             ax.set_xlabel("Length (m)")
         
-        if "周期" in ax.get_ylabel():
+        if "Period" in ax.get_ylabel():
             ax.set_ylabel("Period (s)")
-        elif "周期平方" in ax.get_ylabel():
+        elif "Period²" in ax.get_ylabel():
             ax.set_ylabel("Period² (s²)")
     
     # 显示结果
-    st.subheader("测量结果")
+    st.subheader("Measurement Results")
     g_value = results['gravity_estimate']['g_value']
     g_uncertainty = results['gravity_estimate']['g_uncertainty']
     standard_g = 9.80665
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("测量重力加速度", f"{g_value:.6f} m/s²")
+        st.metric("Measured Gravitational Acceleration", f"{g_value:.6f} m/s²")
     with col2:
-        st.metric("测量不确定度", f"±{g_uncertainty:.6f} m/s²")
+        st.metric("Measurement Uncertainty", f"±{g_uncertainty:.6f} m/s²")
     with col3:
         relative_error = abs(g_value - standard_g) / standard_g * 100
-        st.metric("相对标准值误差", f"{relative_error:.6f}%")
+        st.metric("Relative Standard Value Error", f"{relative_error:.6f}%")
     
     # 显示图表
     st.pyplot(fig)
     
     # 显示详细数据
-    st.subheader("测量数据")
+    st.subheader("Measurement Data")
     data = {
-        "摆长 (m)": lengths,
-        "周期 (s)": results["periods"],
-        "周期平方 (s²)": np.square(results["periods"])
+        "Length (m)": lengths,
+        "Period (s)": results["periods"],
+        "Period² (s²)": np.square(results["periods"])
     }
     st.dataframe(data)
     
     # 拟合参数
-    st.subheader("线性拟合参数")
+    st.subheader("Linear Fit Parameters")
     m, b = results['gravity_estimate']['fit_params']
-    st.write(f"拟合方程: T² = {m:.6f} × L + {b:.6f}")
-    st.write(f"理论斜率: 4π²/g = {4 * np.pi**2 / exp_gravity:.6f}")
-    st.write(f"测量斜率: {m:.6f}")
-    st.write(f"理论截距: 0 (理想情况)")
-    st.write(f"测量截距: {b:.6f}")
+    st.write(f"Fitted Equation: T² = {m:.6f} × L + {b:.6f}")
+    st.write(f"Theoretical Slope: 4π²/g = {4 * np.pi**2 / exp_gravity:.6f}")
+    st.write(f"Measured Slope: {m:.6f}")
+    st.write(f"Theoretical Intercept: 0 (Ideal Case)")
+    st.write(f"Measured Intercept: {b:.6f}")
 
 # 添加说明和注意事项
 with st.expander("使用说明"):
     st.markdown("""
-    ### 如何使用这个应用
-    1. 在左侧栏选择模拟模式
-    2. 调整各种参数以观察其影响
-    3. 查看图表、数据和动画了解单摆运动规律
+    ### 如何使用本应用程序
+    1. 在左侧边栏选择模拟模式
+    2. 调整各种参数以观察它们的影响
+    3. 查看图表、数据和动画以理解单摆运动规律
     
     ### 参数解释
-    - **摆长**: 从支点到摆球中心的距离
-    - **质量**: 摆球质量，影响能量但不影响周期
-    - **重力加速度**: 影响单摆周期的主要参数
-    - **阻尼系数**: 模拟空气阻力等阻尼效应
-    - **初始角度**: 释放单摆时的初始角度
+    - **摆长**：从支点到摆球中心的距离
+    - **质量**：摆球质量，影响能量但不影响周期
+    - **重力加速度**：影响单摆周期的主要参数
+    - **阻尼系数**：模拟空气阻力等阻尼效应
+    - **初始角度**：释放单摆的初始角度
     
     ### 实验背景
-    单摆是经典物理中研究周期运动和重力测量的重要实验。通过测量不同摆长下的周期，
-    可以根据公式 T = 2π√(L/g) 精确计算重力加速度。
+    单摆是经典物理学中研究周期运动和测量重力加速度的重要实验。通过测量不同摆长下的周期，
+    可以使用公式 T = 2π√(L/g) 精确计算重力加速度。
     """)
 
-st.sidebar.info("© 2025 单摆精确测量虚拟平台") 
+st.sidebar.info("© 2025 单摆精密测量虚拟平台") 
+
+# 在侧边栏增加本地分析结果加载
+st.sidebar.header("数据加载与显示")
+load_mode = st.sidebar.radio("选择数据来源", ["在线模拟", "加载本地分析结果"])
+
+if load_mode == "加载本地分析结果":
+    st.header("本地分析结果显示")
+    uploaded_file = st.sidebar.file_uploader("上传本地JSON分析结果", type=["json"])
+    if uploaded_file is not None:
+        try:
+            data = json.load(uploaded_file)
+            if isinstance(data, list) and all(isinstance(d, dict) for d in data):
+                import pandas as pd
+                df = pd.DataFrame(data)
+                st.subheader("Data Table Preview")
+                st.dataframe(df)
+                # 数据下载
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button("Download Data as CSV", csv, file_name="analysis_result.csv", mime="text/csv")
+                # 多列联动可视化
+                st.subheader("Multi-column Comparison Visualization")
+                num_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
+                selected_cols = st.multiselect("Select numeric fields to compare", num_cols, default=num_cols[:2])
+                chart_html = ""
+                if selected_cols:
+                    st.line_chart(df[selected_cols])
+                    # 生成图表HTML（静态图片）
+                    import matplotlib.pyplot as plt
+                    import io, base64
+                    fig, ax = plt.subplots()
+                    df[selected_cols].plot(ax=ax)
+                    ax.set_title("Selected Columns Comparison")
+                    buf = io.BytesIO()
+                    fig.savefig(buf, format='png')
+                    plt.close(fig)
+                    buf.seek(0)
+                    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+                    chart_html = f'<img src="data:image/png;base64,{img_base64}"/>'
+                # 生成实验报告
+                st.subheader("Automatic Experiment Report Generation")
+                with st.form("report_form"):
+                    report_title = st.text_input("Report Title", "Pendulum Experiment Analysis Report")
+                    report_author = st.text_input("Author", "")
+                    report_desc = st.text_area("Experiment Description", "This report is automatically generated based on local analysis results, including data tables, main charts, and conclusions.")
+                    submitted = st.form_submit_button("Generate HTML Report")
+                if submitted:
+                    html = f"""
+                    <html><head><meta charset='utf-8'><title>{report_title}</title></head><body>
+                    <h1>{report_title}</h1>
+                    <p><b>Author:</b>{report_author}</p>
+                    <p><b>Experiment Description:</b>{report_desc}</p>
+                    <h2>Data Table</h2>
+                    {df.to_html(index=False)}
+                    <h2>Main Charts</h2>
+                    {chart_html}
+                    <h2>Main Conclusions</h2>
+                    <ul>
+                    {''.join(f'<li>{col}：Max={df[col].max():.4g}，Min={df[col].min():.4g}，Mean={df[col].mean():.4g}</li>' for col in selected_cols)}
+                    </ul>
+                    </body></html>
+                    """
+                    st.download_button("Download HTML Experiment Report", html, file_name="pendulum_report.html", mime="text/html")
+            elif isinstance(data, dict):
+                st.json(data)
+                st.info("Loaded single analysis result (e.g., g-value measurement, damping analysis, etc.)")
+            else:
+                st.warning("Unrecognized JSON data structure!")
+        except Exception as e:
+            st.error(f"JSON parsing failed: {e}")
+    st.stop() 
