@@ -932,9 +932,14 @@ if app_mode == "基础单摆模拟":
                 "total_energy": total_energy
             }
             
-            # 生成图表并应用英文标签
+            # 设置模拟结果
+            pendulum.times = time_data
+            pendulum.angles = angle_data
+            pendulum.angular_velocities = angular_velocity
+            
+            # 生成图表
             fig = pendulum.visualize()
-            fig = apply_english_labels(fig)
+            # 不再需要应用英文标签，因为我们已经改为中文
             st.pyplot(fig)
     
     with tab3:
@@ -996,7 +1001,7 @@ elif app_mode == "理论与实验对比":
     exp_angle_error_rad = np.deg2rad(exp_angle_error)
     
     # 创建理论模型
-    with st.spinner("Running theoretical model..."):
+    with st.spinner("正在运行理论模型..."):
         theory = PendulumSimulation(
             length=length,
             mass=mass,
@@ -1007,7 +1012,7 @@ elif app_mode == "理论与实验对比":
         theory_results = theory.simulate(t_span=(0, t_end), t_points=500)
     
     # 创建实验模型
-    with st.spinner("Running experimental model..."):
+    with st.spinner("正在运行实验模型..."):
         experiment = PendulumSimulation(
             length=length,
             mass=mass,
@@ -1018,7 +1023,7 @@ elif app_mode == "理论与实验对比":
         exp_results = experiment.simulate(t_span=(0, t_end), t_points=500)
     
     # 添加噪声
-    with st.spinner("Adding measurement noise..."):
+    with st.spinner("正在添加测量噪声..."):
         np.random.seed(42)
         for key in ['angle', 'x_position', 'y_position']:
             noise = np.random.normal(0, noise_level, len(exp_results[key]))
@@ -1036,29 +1041,29 @@ elif app_mode == "理论与实验对比":
     analyzer = modify_analyzer_visualization(analyzer)
     
     # 计算误差指标
-    with st.spinner("Calculating error metrics..."):
+    with st.spinner("正在计算误差指标..."):
         error_metrics = analyzer.calculate_error_metrics()
     
     # 显示误差指标
-    st.subheader("Error Metrics")
+    st.subheader("误差指标")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Root Mean Square Error (RMSE)", f"{error_metrics['RMSE']:.6f}")
+        st.metric("均方根误差 (RMSE)", f"{error_metrics['RMSE']:.6f}")
     with col2:
-        st.metric("Mean Absolute Error (MAE)", f"{error_metrics['MAE']:.6f}")
+        st.metric("平均绝对误差 (MAE)", f"{error_metrics['MAE']:.6f}")
     with col3:
-        st.metric("Mean Absolute Percentage Error", f"{error_metrics['MAPE']:.2f}%")
+        st.metric("平均相对误差", f"{error_metrics['MAPE']:.2f}%")
     
     # 可视化比较
-    st.subheader("Data Comparison Visualization")
-    with st.spinner("Generating comparison charts..."):
+    st.subheader("数据对比可视化")
+    with st.spinner("正在生成对比图表..."):
         fig = analyzer.visualize_comparison()
         st.pyplot(fig)
     
     # 保存数据
-    if st.button("Save Comparison Data as CSV"):
+    if st.button("保存对比数据为CSV"):
         analyzer.export_data_to_csv('pendulum_data_comparison.csv')
-        st.success("Data saved to pendulum_data_comparison.csv")
+        st.success("数据已保存至 pendulum_data_comparison.csv")
 
 elif app_mode == "重力加速度测量":
     st.header("重力加速度测量实验")
@@ -1077,7 +1082,7 @@ elif app_mode == "重力加速度测量":
     analyzer = DataAnalyzer()
     
     # 运行摆长周期实验
-    with st.spinner("Running period measurement for different lengths..."):
+    with st.spinner("正在为不同摆长测量周期..."):
         results, fig = analyzer.pendulum_length_vs_period_experiment(
             PendulumSimulation,
             lengths,
@@ -1089,56 +1094,43 @@ elif app_mode == "重力加速度测量":
             t_points=1000
         )
     
-    # 修改图表中的中文标签为英文
-    for ax in fig.axes:
-        if "Period" in ax.get_title():
-            ax.set_title("Period vs Length")
-        elif "Verification" in ax.get_title():
-            ax.set_title("T² vs L Relationship")
-            
-        if "Length" in ax.get_xlabel():
-            ax.set_xlabel("Length (m)")
-        
-        if "Period" in ax.get_ylabel():
-            ax.set_ylabel("Period (s)")
-        elif "Period²" in ax.get_ylabel():
-            ax.set_ylabel("Period² (s²)")
+    # 不再需要修改图表标签，因为DataAnalyzer中已经使用中文标签
     
     # 显示结果
-    st.subheader("Measurement Results")
+    st.subheader("测量结果")
     g_value = results['gravity_estimate']['g_value']
     g_uncertainty = results['gravity_estimate']['g_uncertainty']
     standard_g = 9.80665
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Measured Gravitational Acceleration", f"{g_value:.6f} m/s²")
+        st.metric("测量重力加速度", f"{g_value:.6f} m/s²")
     with col2:
-        st.metric("Measurement Uncertainty", f"±{g_uncertainty:.6f} m/s²")
+        st.metric("测量不确定度", f"±{g_uncertainty:.6f} m/s²")
     with col3:
         relative_error = abs(g_value - standard_g) / standard_g * 100
-        st.metric("Relative Standard Value Error", f"{relative_error:.6f}%")
+        st.metric("相对标准值误差", f"{relative_error:.6f}%")
     
     # 显示图表
     st.pyplot(fig)
     
     # 显示详细数据
-    st.subheader("Measurement Data")
+    st.subheader("测量数据")
     data = {
-        "Length (m)": lengths,
-        "Period (s)": results["periods"],
-        "Period² (s²)": np.square(results["periods"])
+        "摆长 (m)": lengths,
+        "周期 (s)": results["periods"],
+        "周期平方 (s²)": np.square(results["periods"])
     }
     st.dataframe(data)
     
     # 拟合参数
-    st.subheader("Linear Fit Parameters")
+    st.subheader("线性拟合参数")
     m, b = results['gravity_estimate']['fit_params']
-    st.write(f"Fitted Equation: T² = {m:.6f} × L + {b:.6f}")
-    st.write(f"Theoretical Slope: 4π²/g = {4 * np.pi**2 / exp_gravity:.6f}")
-    st.write(f"Measured Slope: {m:.6f}")
-    st.write(f"Theoretical Intercept: 0 (Ideal Case)")
-    st.write(f"Measured Intercept: {b:.6f}")
+    st.write(f"拟合方程: T² = {m:.6f} × L + {b:.6f}")
+    st.write(f"理论斜率: 4π²/g = {4 * np.pi**2 / exp_gravity:.6f}")
+    st.write(f"测量斜率: {m:.6f}")
+    st.write(f"理论截距: 0 (理想情况)")
+    st.write(f"测量截距: {b:.6f}")
 
 # 添加说明和注意事项
 with st.expander("使用说明"):
@@ -1175,15 +1167,15 @@ if load_mode == "加载本地分析结果":
             if isinstance(data, list) and all(isinstance(d, dict) for d in data):
                 import pandas as pd
                 df = pd.DataFrame(data)
-                st.subheader("Data Table Preview")
+                st.subheader("数据表预览")
                 st.dataframe(df)
                 # 数据下载
                 csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button("Download Data as CSV", csv, file_name="analysis_result.csv", mime="text/csv")
+                st.download_button("下载数据为CSV", csv, file_name="analysis_result.csv", mime="text/csv")
                 # 多列联动可视化
-                st.subheader("Multi-column Comparison Visualization")
+                st.subheader("多列对比可视化")
                 num_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
-                selected_cols = st.multiselect("Select numeric fields to compare", num_cols, default=num_cols[:2])
+                selected_cols = st.multiselect("选择要比较的数值字段", num_cols, default=num_cols[:2])
                 chart_html = ""
                 if selected_cols:
                     st.line_chart(df[selected_cols])
@@ -1200,32 +1192,32 @@ if load_mode == "加载本地分析结果":
                     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
                     chart_html = f'<img src="data:image/png;base64,{img_base64}"/>'
                 # 生成实验报告
-                st.subheader("Automatic Experiment Report Generation")
+                st.subheader("自动生成实验报告")
                 with st.form("report_form"):
-                    report_title = st.text_input("Report Title", "Pendulum Experiment Analysis Report")
-                    report_author = st.text_input("Author", "")
-                    report_desc = st.text_area("Experiment Description", "This report is automatically generated based on local analysis results, including data tables, main charts, and conclusions.")
-                    submitted = st.form_submit_button("Generate HTML Report")
+                    report_title = st.text_input("报告标题", "单摆实验分析报告")
+                    report_author = st.text_input("作者", "")
+                    report_desc = st.text_area("实验描述", "本报告基于本地分析结果自动生成，包括数据表格、主要图表和结论。")
+                    submitted = st.form_submit_button("生成HTML报告")
                 if submitted:
                     html = f"""
                     <html><head><meta charset='utf-8'><title>{report_title}</title></head><body>
                     <h1>{report_title}</h1>
-                    <p><b>Author:</b>{report_author}</p>
-                    <p><b>Experiment Description:</b>{report_desc}</p>
-                    <h2>Data Table</h2>
+                    <p><b>作者：</b>{report_author}</p>
+                    <p><b>实验描述：</b>{report_desc}</p>
+                    <h2>数据表</h2>
                     {df.to_html(index=False)}
-                    <h2>Main Charts</h2>
+                    <h2>主要图表</h2>
                     {chart_html}
-                    <h2>Main Conclusions</h2>
+                    <h2>主要结论</h2>
                     <ul>
-                    {''.join(f'<li>{col}：Max={df[col].max():.4g}，Min={df[col].min():.4g}，Mean={df[col].mean():.4g}</li>' for col in selected_cols)}
+                    {''.join(f'<li>{col}：最大值={df[col].max():.4g}，最小值={df[col].min():.4g}，平均值={df[col].mean():.4g}</li>' for col in selected_cols)}
                     </ul>
                     </body></html>
                     """
-                    st.download_button("Download HTML Experiment Report", html, file_name="pendulum_report.html", mime="text/html")
+                    st.download_button("下载HTML实验报告", html, file_name="pendulum_report.html", mime="text/html")
             elif isinstance(data, dict):
                 st.json(data)
-                st.info("Loaded single analysis result (e.g., g-value measurement, damping analysis, etc.)")
+                st.info("已加载单个分析结果（如g值测量、阻尼分析等）")
             else:
                 st.warning("Unrecognized JSON data structure!")
         except Exception as e:
