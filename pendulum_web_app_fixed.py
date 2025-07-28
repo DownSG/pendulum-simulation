@@ -219,6 +219,13 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
     # 创建基本图形
     fig = go.Figure()
     
+    # 设置Plotly中文字体
+    chinese_font = dict(
+        family="SimHei, 'Microsoft YaHei', Arial, sans-serif",
+        size=14,
+        color="black"
+    )
+    
     # 添加摆长
     fig.add_trace(
         go.Scatter(
@@ -226,7 +233,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[0, y_pos[0]], 
             mode='lines', 
             line=dict(color='black', width=3),
-            name='Pendulum Rod',
+            name='摆杆',
             showlegend=False
         )
     )
@@ -238,7 +245,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[y_pos[0]], 
             mode='markers', 
             marker=dict(color='red', size=15),
-            name='Pendulum Ball',
+            name='摆球',
             showlegend=False
         )
     )
@@ -250,7 +257,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=[0], 
             mode='markers', 
             marker=dict(color='black', size=10),
-            name='Pendulum Point',
+            name='摆点',
             showlegend=False
         )
     )
@@ -262,7 +269,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             y=y_pos[:1], 
             mode='lines', 
             line=dict(color='rgba(255,0,0,0.3)', width=2),
-            name='Trajectory',
+            name='轨迹',
             showlegend=False
         )
     )
@@ -270,15 +277,18 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
     # 设置布局
     axis_range = 1.5 * length
     fig.update_layout(
-        title=f"单摆运动动画 (周期: {period:.4f}s)",
+        title=dict(
+            text=f"单摆运动动画 (周期: {period:.4f}s)",
+            font=chinese_font
+        ),
         xaxis=dict(
             range=[-axis_range, axis_range],
-            title="X位置 (m)",
+            title=dict(text="X位置 (m)", font=chinese_font),
             zeroline=True
         ),
         yaxis=dict(
             range=[-axis_range, 0.5 * length],
-            title="Y位置 (m)",
+            title=dict(text="Y位置 (m)", font=chinese_font),
             zeroline=True,
             scaleanchor="x",  # 保持坐标轴比例一致
             scaleratio=1
@@ -287,7 +297,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'type': 'buttons',
             'buttons': [
                 dict(
-                    label="Play",
+                    label="播放",
                     method="animate",
                     args=[None, {
                         "frame": {"duration": 50, "redraw": True},
@@ -296,7 +306,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
                     }]
                 ),
                 dict(
-                    label="Pause",
+                    label="暂停",
                     method="animate",
                     args=[[None], {
                         "frame": {"duration": 0, "redraw": True},
@@ -311,7 +321,8 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'x': 0.1,
             'y': 0,
             'xanchor': 'right',
-            'yanchor': 'top'
+            'yanchor': 'top',
+            'font': chinese_font
         }],
         sliders=[{
             'steps': [
@@ -331,9 +342,9 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
             'pad': {'l': 10, 'r': 10, 't': 50, 'b': 10},
             'currentvalue': {
                 'visible': True,
-                'prefix': 'Time: ',
+                'prefix': '时间: ',
                 'xanchor': 'right',
-                'font': {'size': 12, 'color': '#666'}
+                'font': chinese_font
             },
             'transition': {'duration': 0},
             'active': 0
@@ -342,7 +353,8 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
         margin=dict(l=50, r=50, t=50, b=50),
         grid=dict(rows=1, columns=1),
         paper_bgcolor='rgba(255,255,255,0.9)',
-        plot_bgcolor='rgba(245,245,245,0.9)'
+        plot_bgcolor='rgba(245,245,245,0.9)',
+        font=chinese_font  # 设置全局字体
     )
     
     # 创建动画帧
@@ -381,12 +393,12 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
         if angle_data is not None and angular_velocity is not None and kinetic_energy is not None and potential_energy is not None:
             # 添加实时数据文本
             data_text = (
-                f"Time: {time_data[idx]:.2f}s<br>"
-                f"Angle: {angle_data[idx]:.3f}rad<br>"
-                f"Angular Velocity: {angular_velocity[idx]:.3f}rad/s<br>"
-                f"Kinetic Energy: {kinetic_energy[idx]:.3f}J<br>"
-                f"Potential Energy: {potential_energy[idx]:.3f}J<br>"
-                f"Total Energy: {kinetic_energy[idx] + potential_energy[idx]:.3f}J"
+                f"时间: {time_data[idx]:.2f}s<br>"
+                f"角度: {angle_data[idx]:.3f}rad<br>"
+                f"角速度: {angular_velocity[idx]:.3f}rad/s<br>"
+                f"动能: {kinetic_energy[idx]:.3f}J<br>"
+                f"势能: {potential_energy[idx]:.3f}J<br>"
+                f"总能量: {kinetic_energy[idx] + potential_energy[idx]:.3f}J"
             )
             
             # 添加数据注释
@@ -397,11 +409,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
                     mode='text',
                     text=data_text,
                     textposition="top right",
-                    textfont=dict(
-                        family="Arial",
-                        size=12,
-                        color="black"
-                    ),
+                    textfont=chinese_font,
                     showlegend=False
                 )
             )
