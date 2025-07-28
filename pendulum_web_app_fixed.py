@@ -804,7 +804,7 @@ if app_mode == "基础单摆模拟":
                     # 绘制相位轨迹
                     ax1.plot(angle_data, angular_velocity, 'b-', alpha=0.3)
                     # 标记当前点
-                    ax1.plot(angle_data[closest_idx], angular_velocity[closest_idx], 'ro')
+                    ax1.plot(angle_data[selected_time_idx], angular_velocity[selected_time_idx], 'ro')
                     ax1.set_xlabel('角度 (rad)')
                     ax1.set_ylabel('角速度 (rad/s)')
                     ax1.set_title('相空间图')
@@ -813,9 +813,9 @@ if app_mode == "基础单摆模拟":
                     # 2. 能量条形图
                     ax2 = force_fig.add_subplot(1, 2, 2)
                     energy_types = ['动能', '势能', '总能量']
-                    energy_values = [kinetic_energy[closest_idx], 
-                                    potential_energy[closest_idx], 
-                                    total_energy[closest_idx]]
+                    energy_values = [kinetic_energy[selected_time_idx], 
+                                    potential_energy[selected_time_idx], 
+                                    total_energy[selected_time_idx]]
                     colors = ['blue', 'red', 'green']
                     
                     bars = ax2.bar(energy_types, energy_values, color=colors)
@@ -827,7 +827,7 @@ if app_mode == "基础单摆模拟":
                                f'{height:.4f}J', ha='center', va='bottom', fontsize=9)
                     
                     ax2.set_ylabel('能量 (J)')
-                    ax2.set_title(f'能量分布 (t={time_data[closest_idx]:.2f}s)')
+                    ax2.set_title(f'能量分布 (t={time_data[selected_time_idx]:.2f}s)')
                     
                     # 添加初始能量水平线作为参考
                     ax2.axhline(y=total_energy[0], color='black', linestyle='--', 
