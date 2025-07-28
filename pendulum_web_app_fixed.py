@@ -118,6 +118,10 @@ def create_pendulum_frame(x_pos, y_pos, time_val, length, gravity, frame_idx, an
         angle = np.arctan2(x, -y)
         omega = 0  # 无法从单帧准确推算角速度
     
+    # 确保中文字体正确设置
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+    plt.rcParams['axes.unicode_minus'] = False
+    
     # 创建图表
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.set_xlim(-1.5*length, 1.5*length)
@@ -266,15 +270,15 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
     # 设置布局
     axis_range = 1.5 * length
     fig.update_layout(
-        title=f"Pendulum Motion Animation (Period: {period:.4f}s)",
+        title=f"单摆运动动画 (周期: {period:.4f}s)",
         xaxis=dict(
             range=[-axis_range, axis_range],
-            title="X Position (m)",
+            title="X位置 (m)",
             zeroline=True
         ),
         yaxis=dict(
             range=[-axis_range, 0.5 * length],
-            title="Y Position (m)",
+            title="Y位置 (m)",
             zeroline=True,
             scaleanchor="x",  # 保持坐标轴比例一致
             scaleratio=1
@@ -700,6 +704,10 @@ if app_mode == "基础单摆模拟":
                     # 创建当前时刻的力学分析图
                     force_fig = plt.figure(figsize=(10, 6))
                     
+                    # 确保中文字体正确设置
+                    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+                    plt.rcParams['axes.unicode_minus'] = False
+                    
                     # 1. 角度与角速度关系子图（相位图）
                     ax1 = force_fig.add_subplot(1, 2, 1)
                     # 绘制相位轨迹
@@ -893,6 +901,11 @@ if app_mode == "基础单摆模拟":
                 }
                 
                 chart = plt.figure(figsize=(10, 4))
+                
+                # 确保中文字体正确设置
+                plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+                plt.rcParams['axes.unicode_minus'] = False
+                
                 ax = chart.add_subplot(111)
                 bars = ax.bar(data['Type'], data['Period Value (s)'], color=['blue', 'green', 'red'])
                 
