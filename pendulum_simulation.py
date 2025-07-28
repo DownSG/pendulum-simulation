@@ -373,6 +373,49 @@ class PendulumSimulation:
         else:
             return pd.DataFrame(columns=['length', 'period', 'period_theoretical'])
 
+    def calculate_periods(self, angles=None, times=None):
+        """
+        计算单摆的周期数
+        
+        Parameters:
+        angles: 角度数据数组（如果为None，则使用存储的角度）
+        times: 时间数据数组（如果为None，则使用存储的时间）
+        
+        Returns:
+        num_periods: 完整周期数
+        period: 平均周期时间
+        """
+        if angles is None or times is None:
+            if self.angles is None or self.times is None:
+                raise ValueError("No simulation data available. Run simulate() first.")
+            angles = self.angles
+            times = self.times
+            
+        # 找到过零点（从负到正）
+        zero_crossings = []
+        for i in range(1, len(angles)):
+            if angles[i-1] < 0 and angles[i] >= 0:
+                # 线性插值过零点时间
+                t0, t1 = times[i-1], times[i]
+                a0, a1 = angles[i-1], angles[i]
+                t_cross = t0 + (0 - a0) * (t1 - t0) / (a1 - a0)
+                zero_crossings.append(t_cross)
+        
+        # 计算周期（每两个过零点为一个周期）
+        periods = []
+        for i in range(0, len(zero_crossings) - 1, 2):
+            if i + 1 < len(zero_crossings):
+                period = 2 * (zero_crossings[i+1] - zero_crossings[i])
+                periods.append(period)
+        
+        # 计算平均周期
+        if periods:
+            self.period = np.mean(periods)
+            return len(periods), self.period
+        else:
+            self.period = None
+            return 0, None
+
 def run_damping_analysis(
     length=1.0,
     gravity=9.8,

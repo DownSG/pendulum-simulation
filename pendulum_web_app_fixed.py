@@ -694,9 +694,9 @@ if app_mode == "基础单摆模拟":
                         # 周期和g值估计
                         st.subheader("实时周期和重力加速度估计")
                         # 计算周期数
-                        num_periods = pendulum.calculate_periods(angle_data, time_data)
+                        num_periods, avg_period = pendulum.calculate_periods(angle_data, time_data)
                         if num_periods > 0:
-                            estimated_g = 4 * np.pi**2 * length / (pendulum.period**2)
+                            estimated_g = 4 * np.pi**2 * length / (avg_period**2)
                             st.write(f"观测到的周期数: {num_periods} - 重力加速度估计值: {estimated_g:.4f} m/s²")
                         else:
                             st.write("观测到的周期数: 0 - 重力加速度估计值: 暂无")
