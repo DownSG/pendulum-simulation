@@ -416,6 +416,24 @@ class PendulumSimulation:
             self.period = None
             return 0, None
 
+    def calculate_gravity(self):
+        """
+        计算重力加速度
+        
+        Returns:
+        g: 估计的重力加速度值
+        """
+        if not hasattr(self, 'period') or self.period is None:
+            # 如果周期尚未计算，则计算它
+            self.calculate_periods()
+            
+        if hasattr(self, 'period') and self.period is not None:
+            # 使用周期公式计算g值
+            g = 4 * np.pi**2 * self.length / (self.period**2)
+            return g
+        else:
+            return None
+
 def run_damping_analysis(
     length=1.0,
     gravity=9.8,
@@ -447,7 +465,10 @@ def run_damping_analysis(
     import json
     # Simulate
     pendulum = PendulumSimulation(length=length, mass=mass, gravity=gravity, damping=damping, initial_angle=initial_angle)
-    results = pendulum.simulate(t_span=t_span, t_points=t_points)
+    # 计算duration和time_step
+    duration = t_span[1] - t_span[0]
+    time_step = duration / t_points
+    results = pendulum.simulate(duration=duration, time_step=time_step)
     # Take each peak as amplitude
     angles = results['angle']
     times = results['time']
@@ -601,7 +622,10 @@ def run_sensitivity_analysis(
         params = base_params.copy()
         params[param_name] = val
         pendulum = PendulumSimulation(**params)
-        sim_result = pendulum.simulate(t_span=t_span, t_points=t_points)
+        # 计算duration和time_step
+        duration = t_span[1] - t_span[0]
+        time_step = duration / t_points
+        sim_result = pendulum.simulate(duration=duration, time_step=time_step)
         # Period, g value, damping coefficient
         periods, avg_period = pendulum.calculate_periods()
         g_val = pendulum.calculate_gravity()

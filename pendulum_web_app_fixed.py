@@ -1111,7 +1111,7 @@ elif app_mode == "理论与实验对比":
             damping=0.01,  # 极小阻尼
             initial_angle=initial_angle_rad
         )
-        theory_results = theory.simulate(t_span=(0, t_end), t_points=500)
+        theory_results = theory.simulate(duration=t_end, time_step=t_end/500)
     
     # 创建实验模型
     with st.spinner("正在运行实验模型..."):
@@ -1122,7 +1122,7 @@ elif app_mode == "理论与实验对比":
             damping=exp_damping,
             initial_angle=initial_angle_rad + exp_angle_error_rad
         )
-        exp_results = experiment.simulate(t_span=(0, t_end), t_points=500)
+        exp_results = experiment.simulate(duration=t_end, time_step=t_end/500)
     
     # 添加噪声
     with st.spinner("正在添加测量噪声..."):
