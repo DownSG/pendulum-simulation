@@ -554,67 +554,59 @@ def ensure_plotly_chinese_fonts(fig):
 if app_mode == "基础单摆模拟":
     st.header("基础单摆模拟")
     
-    # 添加物理原理解释
-    with st.expander("单摆物理模型解释", expanded=False):
+    # 添加物理模型描述
+    with st.expander("单摆物理模型精确描述"):
         st.markdown("""
-        ### 单摆物理模型精确描述
-        
-        A pendulum is a fundamental model in physics, consisting of a point mass (pendulum bob) connected to a fixed point by a rigid, massless string (pendulum rod).
+        单摆是物理学中的一个基础模型，由一个质点（摆锤）通过刚性、无质量的绳索（摆杆）连接到固定点组成。
 
-        #### Basic Differential Equation
-        
-        The pendulum motion satisfies the following nonlinear differential equation:
+        ### 基本微分方程
+        单摆运动满足以下非线性微分方程：
 
         $$\\frac{d^2\\theta}{dt^2} + \\frac{b}{mL}\\frac{d\\theta}{dt} + \\frac{g}{L}\\sin\\theta = 0$$
 
-        Where:
-        - $\\theta$ is the pendulum's angular displacement (measured from the vertical direction)
-        - $L$ is the pendulum length
-        - $g$ is the gravitational acceleration
-        - $m$ is the pendulum bob mass
-        - $b$ is the damping coefficient (related to air resistance)
-        
-        #### Small Angle Approximation and Nonlinear Effects
-        
-        When the initial angle is very small (usually less than 10°), the small angle approximation $\\sin\\theta \\approx \\theta$ can be used, simplifying the equation to:
+        其中：
+        - $\\theta$ 是单摆的角位移（从垂直方向测量）
+        - $L$ 是摆长
+        - $g$ 是重力加速度
+        - $m$ 是摆锤质量
+        - $b$ 是阻尼系数（与空气阻力相关）
+
+        ### 小角度近似和非线性效应
+        当初始角度很小时（通常小于10°），可以使用小角度近似 $\\sin\\theta \\approx \\theta$，将方程简化为：
 
         $$\\frac{d^2\\theta}{dt^2} + \\frac{b}{mL}\\frac{d\\theta}{dt} + \\frac{g}{L}\\theta = 0$$
-        
-        This is a simple harmonic motion equation with a straightforward analytical solution. However, when the angle is large, the full nonlinear equation must be considered.
 
-        #### Period Formula
-        
-        - **Period under Small Angle Approximation**: $T = 2\\pi\\sqrt{\\frac{L}{g}}$
-        
-        - **Period considering Nonlinear Effects**: $T = 2\\pi\\sqrt{\\frac{L}{g}}\\left(1 + \\frac{1}{16}\\sin^2\\frac{\\theta_0}{2} + \\frac{11}{3072}\\sin^4\\frac{\\theta_0}{2} + ...\\right)$
-        
-        - **Period considering Damping**: $T = \\frac{2\\pi}{\\omega_0\\sqrt{1-\\zeta^2}}$，其中$\\omega_0 = \\sqrt{\\frac{g}{L}}$，$\\zeta = \\frac{b}{2m\\omega_0L}$
-        
-        #### Energy Analysis
-        
-        The total energy of a pendulum consists of kinetic and potential energy:
+        这是一个简单谐振动方程，有直接的解析解。但当角度较大时，必须考虑完整的非线性方程。
 
-        - **Kinetic Energy**: $K = \\frac{1}{2}mL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
-        
-        - **Potential Energy**: $U = mgL(1-\\cos\\theta)$ (relative to the lowest point)
-        
-        - **Total Energy**: $E = K + U$
-        
-        In the presence of damping, energy dissipates over time: $\\frac{dE}{dt} = -bL^2\\left(\\frac{d\\theta}{dt}\\right)^2$
+        ### 周期公式
+        小角度近似下的周期：$T = 2\\pi\\sqrt{\\frac{L}{g}}$
 
-        #### Numerical Solution Method
-        
-        This simulation uses the Runge-Kutta 4-5th order method (RK45) to solve the differential equation, which is a high-precision adaptive step integration algorithm capable of accurately handling the evolution of nonlinear systems. The relative error tolerance is set to $10^{-10}$, and the absolute error tolerance is set to $10^{-10}$, ensuring high-precision calculations.
-        
-        #### Gravity Acceleration Measurement Principle
-        
-        By measuring the period $T$, gravitational acceleration can be calculated:
-        
-        - **Basic Formula**: $g = 4\\pi^2L/T^2$
-        
-        - **Large Angle Correction**: $g = 4\\pi^2L/T^2 \\cdot \\left(1 - \\frac{\\sin^2(\\theta_0/2)}{16} - ...\\right)^{-2}$
-        
-        This correction is applied when the initial angle is greater than about 5.7 degrees ($0.1$ rad), significantly improving measurement accuracy.
+        考虑非线性效应的周期：$T = 2\\pi\\sqrt{\\frac{L}{g}}(1 + \\frac{1}{16}\\sin^2\\frac{\\theta_0}{2} + \\frac{11}{3072}\\sin^4\\frac{\\theta_0}{2} + ...)$
+
+        考虑阻尼的周期：$T = \\frac{2\\pi}{\\omega_0\\sqrt{1-\\zeta^2}}$，其中 $\\omega_0 = \\sqrt{\\frac{g}{L}}$，$\\zeta = \\frac{b}{2m\\omega_0L}$
+
+        ### 能量分析
+        单摆的总能量由动能和势能组成：
+
+        动能：$K = \\frac{1}{2}mL^2(\\frac{d\\theta}{dt})^2$
+
+        势能：$U = mgL(1-\\cos\\theta)$（相对于最低点）
+
+        总能量：$E = K + U$
+
+        存在阻尼时，能量随时间耗散：$\\frac{dE}{dt} = -bL^2(\\frac{d\\theta}{dt})^2$
+
+        ### 数值解法
+        本模拟使用龙格-库塔4-5阶方法（RK45）求解微分方程，这是一种高精度自适应步长积分算法，能够准确处理非线性系统的演化。相对误差容限设为 $10^{-10}$，绝对误差容限设为 $10^{-10}$，确保高精度计算。
+
+        ### 重力加速度测量原理
+        通过测量周期 $T$，可以计算重力加速度：
+
+        基本公式：$g = 4\\pi^2L/T^2$
+
+        大角度修正：$g = 4\\pi^2L/T^2 \\cdot (1-\\frac{\\sin^2(\\theta_0/2)}{16}-...)^{-2}$
+
+        当初始角度大于约5.7度（$0.1$ 弧度）时，应用此修正可显著提高测量精度。
         """)
     
     # 使用缓存运行模拟
@@ -674,93 +666,79 @@ if app_mode == "基础单摆模拟":
                 st.caption("提示：使用播放按钮观看动画，拖动时间滑块查看特定时刻。动画中包含实时数据。")
                 
                 # 添加实时数据显示面板
-                st.subheader("Real-time Physical Data")
-                
-                # 创建时间滑块，用于选择查看特定时刻的数据
-                time_idx = st.slider(
-                    "Select Time Point (s)",
-                    min_value=float(time_data[0]),
-                    max_value=float(time_data[-1]),
-                    value=float(time_data[0]),
-                    step=float((time_data[-1] - time_data[0]) / 100),
-                    key="plotly_time_slider"
-                )
-                
-                # 找到最接近选定时间的索引
-                closest_idx = np.argmin(np.abs(time_data - time_idx))
-                
-                # 创建三列布局用于实时数据显示
-                plotly_cols = st.columns(3)
-                
-                # 创建数据显示容器
-                with plotly_cols[0]:
-                    # 角度和角速度
-                    st.markdown(f"""
-                    ### Kinematic Data
-                    - **Time**: {time_data[closest_idx]:.3f} s
-                    - **Angle**: {angle_data[closest_idx]:.4f} rad ({np.rad2deg(angle_data[closest_idx]):.1f}°)
-                    - **Angular Velocity**: {angular_velocity[closest_idx]:.4f} rad/s
-                    - **X Position**: {x_position[closest_idx]:.4f} m
-                    - **Y Position**: {y_position[closest_idx]:.4f} m
-                    """)
-                    # 新增：动态周期、g值估算
-                    # 1. 动态周期估算（过零点法）
-                    # 只统计当前时刻之前的过零点
-                    zero_crossings = []
-                    for i in range(1, closest_idx):
-                        if angle_data[i-1] < 0 and angle_data[i] >= 0:
-                            # 线性插值过零点时间
-                            t0, t1 = time_data[i-1], time_data[i]
-                            a0, a1 = angle_data[i-1], angle_data[i]
-                            t_cross = t0 + (0 - a0) * (t1 - t0) / (a1 - a0)
-                            zero_crossings.append(t_cross)
-                    # 计算周期
-                    periods = [zero_crossings[i+1] - zero_crossings[i] for i in range(len(zero_crossings)-1)]
-                    avg_period = np.mean(periods) if periods else None
-                    # 动态g值估算
-                    g_dynamic = 4 * np.pi**2 * length / (avg_period**2) if avg_period else None
-                    # 显示
-                    st.markdown("""
-                    #### Real-time Period and g-value Estimation
-                    """ + (
-                        f"- **Observed Periods**: {len(periods)}  "+
-                        (f"- **Current Period**: {periods[-1]:.4f} s  " if periods else "")+
-                        (f"- **Average Period**: {avg_period:.4f} s  " if avg_period else "")+
-                        (f"- **g-value Estimate**: {g_dynamic:.4f} m/s²" if g_dynamic else "- **g-value Estimate**: N/A")
-                    ))
+                with st.expander("实时物理数据", expanded=True):
+                    # 时间选择滑块
+                    st.subheader("选择时间点 (秒)")
+                    selected_time_idx = st.slider(
+                        "选择时间点",
+                        min_value=0,
+                        max_value=len(time_data) - 1,
+                        value=0,
+                        format="%d",
+                        key="time_slider"
+                    )
+                    selected_time = time_data[selected_time_idx]
                     
-                with plotly_cols[1]:
-                    # 计算速度和加速度
-                    vx = length * angular_velocity[closest_idx] * np.cos(angle_data[closest_idx])
-                    vy = length * angular_velocity[closest_idx] * np.sin(angle_data[closest_idx])
-                    v_mag = np.sqrt(vx**2 + vy**2)
+                    # 显示选定时间点的数据
+                    col1, col2 = st.columns(2)
                     
-                    # 计算加速度
-                    a_tan = gravity * np.sin(angle_data[closest_idx])  # 切向加速度
-                    a_n = v_mag**2 / length  # 法向加速度
-                    a_mag = np.sqrt(a_tan**2 + a_n**2)  # 总加速度
+                    with col1:
+                        st.subheader("运动学数据")
+                        st.write(f"时间: {selected_time:.3f} 秒")
+                        angle_deg = np.degrees(angle_data[selected_time_idx])
+                        st.write(f"角度: {angle_data[selected_time_idx]:.4f} 弧度 ({angle_deg:.1f}°)")
+                        st.write(f"角速度: {angular_velocity[selected_time_idx]:.4f} 弧度/秒")
+                        st.write(f"X位置: {x_position[selected_time_idx]:.4f} 米")
+                        st.write(f"Y位置: {y_position[selected_time_idx]:.4f} 米")
+                        
+                        # 周期和g值估计
+                        st.subheader("实时周期和重力加速度估计")
+                        # 计算周期数
+                        num_periods = pendulum.calculate_periods(angle_data, time_data)
+                        if num_periods > 0:
+                            estimated_g = 4 * np.pi**2 * length / (pendulum.period**2)
+                            st.write(f"观测到的周期数: {num_periods} - 重力加速度估计值: {estimated_g:.4f} m/s²")
+                        else:
+                            st.write("观测到的周期数: 0 - 重力加速度估计值: 暂无")
                     
-                    st.markdown(f"""
-                    ### Dynamic Data
-                    - **Speed Magnitude**: {v_mag:.4f} m/s
-                    - **Tangential Acceleration**: {a_tan:.4f} m/s²
-                    - **Normal Acceleration**: {a_n:.4f} m/s²
-                    - **Total Acceleration**: {a_mag:.4f} m/s²
-                    - **Restoring Force**: {mass * gravity * np.sin(angle_data[closest_idx]):.4f} N
-                    """)
-                    
-                with plotly_cols[2]:
-                    # 能量数据
-                    energy_loss_percent = (1 - total_energy[closest_idx]/total_energy[0]) * 100
-                    
-                    st.markdown(f"""
-                    ### Energy Data
-                    - **Kinetic Energy**: {kinetic_energy[closest_idx]:.6f} J
-                    - **Potential Energy**: {potential_energy[closest_idx]:.6f} J
-                    - **Total Energy**: {total_energy[closest_idx]:.6f} J
-                    - **Energy Loss**: {energy_loss_percent:.2f}%
-                    - **Power Loss**: {damping * (angular_velocity[closest_idx]**2):.6f} W
-                    """)
+                    with col2:
+                        st.subheader("动力学数据")
+                        # 计算速度大小
+                        v_x = -length * angular_velocity[selected_time_idx] * np.sin(angle_data[selected_time_idx])
+                        v_y = length * angular_velocity[selected_time_idx] * np.cos(angle_data[selected_time_idx])
+                        speed = np.sqrt(v_x**2 + v_y**2)
+                        st.write(f"速度大小: {speed:.4f} 米/秒")
+                        
+                        # 计算加速度分量
+                        a_tangential = -gravity * np.sin(angle_data[selected_time_idx])
+                        a_normal = length * angular_velocity[selected_time_idx]**2
+                        a_total = np.sqrt(a_tangential**2 + a_normal**2)
+                        st.write(f"切向加速度: {a_tangential:.4f} 米/秒²")
+                        st.write(f"法向加速度: {a_normal:.4f} 米/秒²")
+                        st.write(f"总加速度: {a_total:.4f} 米/秒²")
+                        
+                        # 计算恢复力
+                        restoring_force = mass * gravity * np.sin(angle_data[selected_time_idx])
+                        st.write(f"恢复力: {restoring_force:.4f} 牛顿")
+                        
+                        # 能量数据
+                        st.subheader("能量数据")
+                        st.write(f"动能: {kinetic_energy[selected_time_idx]:.6f} 焦耳")
+                        st.write(f"势能: {potential_energy[selected_time_idx]:.6f} 焦耳")
+                        st.write(f"总能量: {kinetic_energy[selected_time_idx] + potential_energy[selected_time_idx]:.6f} 焦耳")
+                        
+                        # 能量损失百分比
+                        initial_energy = kinetic_energy[0] + potential_energy[0]
+                        current_energy = kinetic_energy[selected_time_idx] + potential_energy[selected_time_idx]
+                        energy_loss_percent = ((initial_energy - current_energy) / initial_energy * 100) if initial_energy > 0 else 0
+                        st.write(f"能量损失: {energy_loss_percent:.2f}%")
+                        
+                        # 功率损失（近似计算）
+                        if selected_time_idx > 0:
+                            time_diff = time_data[selected_time_idx] - time_data[selected_time_idx - 1]
+                            energy_diff = (kinetic_energy[selected_time_idx - 1] + potential_energy[selected_time_idx - 1]) - current_energy
+                            power_loss = energy_diff / time_diff if time_diff > 0 else 0
+                            st.write(f"功率损失: {power_loss:.6f} 瓦特")
                 
                 # 添加瞬时力学分析可视化
                 with st.expander("瞬时力学分析", expanded=True):
