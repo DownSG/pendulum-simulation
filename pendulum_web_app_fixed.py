@@ -26,8 +26,32 @@ import time
 import pandas as pd  # 确保pandas被导入
 import json
 
-# 设置页面
-st.set_page_config(page_title="单摆精密测量平台", layout="wide")
+# 设置Streamlit页面配置，包括中文支持
+st.set_page_config(
+    page_title="单摆精密测量平台", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 设置CSS以确保中文字体正确显示
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Noto Sans SC', sans-serif;
+    }
+    
+    .stPlotlyChart text {
+        font-family: 'Noto Sans SC', sans-serif !important;
+    }
+    
+    /* 确保Plotly图表中的中文正确显示 */
+    .js-plotly-plot .plotly .main-svg text {
+        font-family: 'Noto Sans SC', sans-serif !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # 页面标题
 st.title("单摆精密测量平台")
@@ -221,7 +245,7 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
     
     # 设置Plotly中文字体
     chinese_font = dict(
-        family="SimHei, 'Microsoft YaHei', Arial, sans-serif",
+        family="'Noto Sans SC', 'Microsoft YaHei', 'SimHei', Arial, sans-serif",
         size=14,
         color="black"
     )
@@ -354,7 +378,8 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
         grid=dict(rows=1, columns=1),
         paper_bgcolor='rgba(255,255,255,0.9)',
         plot_bgcolor='rgba(245,245,245,0.9)',
-        font=chinese_font  # 设置全局字体
+        font=chinese_font,  # 设置全局字体
+        uirevision=True  # 确保UI状态保持一致
     )
     
     # 创建动画帧
@@ -421,6 +446,9 @@ def create_plotly_pendulum_animation(x_pos, y_pos, time_data, length, gravity, a
         frames.append(frame)
     
     fig.frames = frames
+    
+    # 应用中文字体设置
+    fig = ensure_plotly_chinese_fonts(fig)
     
     return fig
 
@@ -497,6 +525,31 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
         "avg_period": avg_period,
         "g_calculated": g_calculated
     }
+
+# 确保Plotly图表中的中文显示正常
+def ensure_plotly_chinese_fonts(fig):
+    """确保Plotly图表中的中文字体正确显示"""
+    # 设置通用的中文字体
+    chinese_font = {
+        'family': "'Noto Sans SC', 'Microsoft YaHei', 'SimHei', Arial, sans-serif",
+        'size': 14
+    }
+    
+    # 更新图表的字体配置
+    fig.update_layout(
+        font=chinese_font,
+        title_font=chinese_font,
+        legend_title_font=chinese_font
+    )
+    
+    # 更新坐标轴标题字体
+    fig.update_xaxes(title_font=chinese_font)
+    fig.update_yaxes(title_font=chinese_font)
+    
+    # 更新图例字体
+    fig.update_layout(legend_font=chinese_font)
+    
+    return fig
 
 if app_mode == "基础单摆模拟":
     st.header("基础单摆模拟")
@@ -615,8 +668,10 @@ if app_mode == "基础单摆模拟":
                     x_position, y_position, time_data, length, gravity,
                     angle_data, angular_velocity, kinetic_energy, potential_energy
                 )
+                # 确保中文字体正确显示
+                plotly_fig = ensure_plotly_chinese_fonts(plotly_fig)
                 st.plotly_chart(plotly_fig, use_container_width=True)
-                st.caption("Tip: Use the play button to watch the animation, drag the time slider to view specific moments. Real-time data is included in the animation.")
+                st.caption("提示：使用播放按钮观看动画，拖动时间滑块查看特定时刻。动画中包含实时数据。")
                 
                 # 添加实时数据显示面板
                 st.subheader("Real-time Physical Data")
