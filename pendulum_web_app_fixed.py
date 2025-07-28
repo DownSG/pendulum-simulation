@@ -503,7 +503,7 @@ def run_simulation_data(length, mass, gravity, damping, initial_angle_rad, t_end
     )
     
     # 运行模拟
-    results = pendulum.simulate(t_span=(0, t_end), t_points=500)
+    results = pendulum.simulate(duration=t_end, time_step=t_end/500)
     
     # 计算周期
     periods, avg_period = pendulum.calculate_periods()
